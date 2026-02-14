@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QueueSmart - Register</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="auth-container">
+    <h1>QueueSmart</h1>
+    <h2>Register</h2>
+
+    <form id="registerForm">
+        <label>Email</label>
+        <input type="email" id="registerEmail" required>
+
+        <label>Password</label>
+        <input type="password" id="registerPassword" required>
+
+        <button type="submit">Register</button>
+    </form>
+
+    <p class="error-message" id="registerError"></p>
+
+    <p>
+        Already have an account?
+        <a href="index.html">Login</a>
+    </p>
+</div>
+
+<script src="js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QueueSmart - User Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="top-bar">
+    <div class="top-left">
+        <span class="welcome-text">Welcome back</span>
+    </div>
+
+    <div class="top-center">
+        <h1>QueueSmart</h1>
+    </div>
+
+    <div class="top-right">
+        <button class="icon-btn" title="Notifications">
+            📧
+        </button>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</header>
+
+<main class="dashboard">
+
+    <div class="card-grid">
+
+        <div class="card">
+            <h3>Current Queue</h3>
+            <p><strong>Position:</strong> #3</p>
+            <p><strong>Estimated Wait:</strong> 15 minutes</p>
+            <span class="status waiting">Waiting</span>
+        </div>
+
+        <div class="card">
+            <h3>Available Services</h3>
+            <ul>
+                <li>Academic Advising</li>
+                <li>IT Help Desk</li>
+                <li>Student Services</li>
+            </ul>
+            <button class="primary-btn">Join a Queue</button>
+        </div>
+
+    </div>
+
+</main>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>
