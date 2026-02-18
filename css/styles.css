@@ -22,8 +22,18 @@ body {
 }
 
 .auth-container h2 {
+
+
     margin-bottom: 20px;
     font-weight: normal;
+}
+
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 label {
@@ -53,7 +63,96 @@ button:hover {
     background-color: #0056b3;
 }
 
+
 .error-message {
     color: red;
     margin-top: 10px;
 }
+
+.dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* #region TopBar*/
+.top-bar {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.top-left .welcome-text {
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .top-bar {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    .top-left,
+    .top-right {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .top-right {
+        flex-direction: row;
+    }
+
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.logout-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.logout-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.top-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.top-left .welcome-text {
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.top-center h1 {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+/* #endregion TopBar*/
