@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+                <style>
+                    @keyframes fadeIn {
+                        from {
+                            opacity: 0;
+                            transform: translateY(20px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                    .card.fade-in {
+                        animation: fadeIn 0.6s ease-out;
+                    }
+                </style>
+            <style>
+                .top-bar {
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    border-radius: 16px;
+                    padding: 20px 30px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    margin-bottom: 30px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                    max-width: 900px;
+                    min-width: 600px;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+                .top-left {
+                    flex: 1;
+                    min-width: 120px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                }
+                .top-center {
+                    flex: 2;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+                .top-right {
+                    flex: 1;
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                    justify-content: flex-start;
+                }
+                .admin-panel-title {
+                    color: #2d225a;
+                    font-size: 1.08rem;
+                    font-weight: 700;
+                }
+                @media (max-width: 900px) {
+                    .top-bar {
+                        flex-direction: column;
+                        gap: 15px;
+                        text-align: center;
+                        padding: 18px 10px;
+                        max-width: 98vw;
+                        min-width: unset;
+                    }
+                    .top-left, .top-right {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                    .top-center {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                }
+            </style>
+        <style>
+            .top-left .admin-panel-title {
+                color: #2d225a;
+                font-size: 1.25rem;
+                font-weight: 800;
+                letter-spacing: 0.02em;
+                text-shadow: 0 2px 8px rgba(102, 126, 234, 0.10);
+            }
+        </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QueueSmart - Service Management</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            font-weight: 700;
+            color: #2d225a;
+            font-size: 1.08rem;
+            letter-spacing: 0.01em;
+            margin-bottom: 2px;
+            display: block;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group textarea {
+            width: 100%;
+            max-width: 950px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            margin-top: 6px;
+            font-size: 15px;
+            box-sizing: border-box;
+            display: block;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .error-message {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+        .primary-btn {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<main class="dashboard">
+    <header class="top-bar">
+        <div class="top-left">
+            <span class="admin-panel-title">Admin Panel</span>
+        </div>
+        <div class="top-center">
+            <h1 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 0;">QueueSmart</h1>
+        </div>
+        <div class="top-right" style="align-items: center;">
+            <button class="icon-btn" title="Notifications" style="margin-top:0; vertical-align:middle;">📧</button>
+            <button class="logout-btn" onclick="logout()" style="margin-top:0; vertical-align:middle;">Logout</button>
+        </div>
+    </header>
+    <div class="card fade-in">
+        <h3 style="text-align:center; font-size:1.45rem; margin-bottom: 24px; margin-top: 0;">Service Management</h3>
+        <form id="serviceForm" novalidate style="margin-top: 22px;">
+            <div class="form-group">
+                <label for="serviceName">Service Name <span style="color:#ef4444">*</span></label>
+                <input type="text" id="serviceName" name="serviceName" maxlength="100" required>
+                <div class="error-message" id="serviceNameError"></div>
+            </div>
+            <div class="form-group">
+                <label for="description">Description <span style="color:#ef4444">*</span></label>
+                <textarea id="description" name="description" required maxlength="300"></textarea>
+                <div class="error-message" id="descriptionError"></div>
+            </div>
+            <div class="form-group">
+                <label for="duration">Expected Duration (minutes) <span style="color:#ef4444">*</span></label>
+                <input type="number" id="duration" name="duration" min="1" max="240" required>
+                <div class="error-message" id="durationError"></div>
+            </div>
+            <div class="form-group">
+                <label for="priority">Priority Level <span style="color:#ef4444">*</span></label><br>
+                <select id="priority" name="priority" required style="margin-top:0px; width:160px; display:block;">
+                    <option value="">Select priority</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+                <div class="error-message" id="priorityError"></div>
+            </div>
+            <button type="submit" class="primary-btn">Create / Edit Service</button>
+        </form>
+    </div>
+</main>
+<script>
+    function logout() {
+        alert('Logout functionality would be implemented here');
+    }
+
+    document.getElementById('serviceForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        let valid = true;
+        // Clear errors
+        document.getElementById('serviceNameError').textContent = '';
+        document.getElementById('descriptionError').textContent = '';
+        document.getElementById('durationError').textContent = '';
+        document.getElementById('priorityError').textContent = '';
+
+        // Validate Service Name
+        const serviceName = document.getElementById('serviceName').value.trim();
+        if (!serviceName) {
+            document.getElementById('serviceNameError').textContent = 'Service Name is required.';
+            valid = false;
+        } else if (serviceName.length > 100) {
+            document.getElementById('serviceNameError').textContent = 'Max 100 characters.';
+            valid = false;
+        }
+
+        // Validate Description
+        const description = document.getElementById('description').value.trim();
+        if (!description) {
+            document.getElementById('descriptionError').textContent = 'Description is required.';
+            valid = false;
+        }
+
+        // Validate Duration
+        const duration = document.getElementById('duration').value;
+        if (!duration) {
+            document.getElementById('durationError').textContent = 'Expected Duration is required.';
+            valid = false;
+        } else if (duration < 1 || duration > 240) {
+            document.getElementById('durationError').textContent = 'Duration must be between 1 and 240 minutes.';
+            valid = false;
+        }
+
+        // Validate Priority
+        const priority = document.getElementById('priority').value;
+        if (!priority) {
+            document.getElementById('priorityError').textContent = 'Priority Level is required.';
+            valid = false;
+        }
+
+        if (valid) {
+            alert('Service created/edited (mock)!');
+            // Reset form or update mock data
+            this.reset();
+        }
+    });
+</script>
+</body>
+</html>
