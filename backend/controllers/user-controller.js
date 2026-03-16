@@ -1,4 +1,4 @@
-// controllers/user-controller.js - User management logic (Member 1)
+// controllers/user-controller.js - user management logic
 
 const { users } = require('../data/mock-data');
 

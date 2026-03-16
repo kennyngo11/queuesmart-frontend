@@ -1,4 +1,4 @@
-// utils/validators.js - Validation helper functions
+// utils/validators.js - validation helper functions
 
 /**
  * Validate email format

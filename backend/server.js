@@ -1,4 +1,4 @@
-// server.js - Main Express server
+// server.js - main express server
 // This file will be shared by all team members
 
 const express = require('express');

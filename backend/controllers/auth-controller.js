@@ -1,4 +1,4 @@
-// controllers/auth-controller.js - Authentication logic (Member 1)
+// controllers/auth-controller.js - authentication logic
 
 const { users, sessions } = require('../data/mock-data');
 const { validateEmail, validatePassword } = require('../utils/validators');

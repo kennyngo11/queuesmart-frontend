@@ -1,4 +1,4 @@
-// data/mock-data.js - In-memory data storage (shared by all team members)
+// data/mock-data.js - in-memory data storage (shared by all team members)
 
 // Users array - stores all registered users
 const users = [

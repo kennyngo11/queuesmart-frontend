@@ -1,4 +1,4 @@
-// tests/auth.test.js - Unit tests for authentication (Member 1)
+// tests/auth.test.js - unit tests for authentication
 // Run with: npm test
 
 const request = require('supertest');

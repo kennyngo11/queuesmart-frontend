@@ -1,4 +1,4 @@
-// routes/auth.js - Authentication routes (Member 1)
+// routes/auth.js - authentication routes
 
 const express = require('express');
 const router = express.Router();
