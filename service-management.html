@@ -50,62 +50,9 @@
             </div>
             <button type="submit" class="primary-btn">Create / Edit Service</button>
         </form>
+        <div id="serviceList" style="margin-top:32px;"></div>
     </div>
 </main>
-<script>
-    function logout() {
-        alert('Logout functionality would be implemented here');
-    }
-
-    document.getElementById('serviceForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        let valid = true;
-        // Clear errors
-        document.getElementById('serviceNameError').textContent = '';
-        document.getElementById('descriptionError').textContent = '';
-        document.getElementById('durationError').textContent = '';
-        document.getElementById('priorityError').textContent = '';
-
-        // Validate Service Name
-        const serviceName = document.getElementById('serviceName').value.trim();
-        if (!serviceName) {
-            document.getElementById('serviceNameError').textContent = 'Service Name is required.';
-            valid = false;
-        } else if (serviceName.length > 100) {
-            document.getElementById('serviceNameError').textContent = 'Max 100 characters.';
-            valid = false;
-        }
-
-        // Validate Description
-        const description = document.getElementById('description').value.trim();
-        if (!description) {
-            document.getElementById('descriptionError').textContent = 'Description is required.';
-            valid = false;
-        }
-
-        // Validate Duration
-        const duration = document.getElementById('duration').value;
-        if (!duration) {
-            document.getElementById('durationError').textContent = 'Expected Duration is required.';
-            valid = false;
-        } else if (duration < 1 || duration > 240) {
-            document.getElementById('durationError').textContent = 'Duration must be between 1 and 240 minutes.';
-            valid = false;
-        }
-
-        // Validate Priority
-        const priority = document.getElementById('priority').value;
-        if (!priority) {
-            document.getElementById('priorityError').textContent = 'Priority Level is required.';
-            valid = false;
-        }
-
-        if (valid) {
-            alert('Service created/edited (mock)!');
-            // Reset form or update mock data
-            this.reset();
-        }
-    });
-</script>
+<script src="js/service-management.js"></script>
 </body>
 </html>
