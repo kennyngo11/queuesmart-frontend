@@ -731,3 +731,135 @@ button[type="submit"]:active {
     border: 1px solid #d1d5db;
     font-size: 15px;
 }
+
+/* ================================================
+   NOTIFICATION DROPDOWN & TOASTS (shared)
+   ================================================ */
+ 
+.notif-wrapper { position: relative; }
+ 
+.notif-badge {
+    position: absolute;
+    top: -4px; right: -4px;
+    background: #ef4444; color: white;
+    font-size: 10px; font-weight: 700;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: none;
+    align-items: center; justify-content: center;
+    pointer-events: none;
+}
+ 
+.notif-panel {
+    display: none;
+    position: absolute;
+    top: 56px; right: 0;
+    width: 340px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    z-index: 1000;
+    overflow: hidden;
+}
+.notif-panel.open { display: block; animation: notifDropIn 0.2s ease-out; }
+ 
+@keyframes notifDropIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+ 
+.notif-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.notif-header h3 { font-size: 15px; font-weight: 700; color: #111827; margin: 0; }
+ 
+.mark-all-btn {
+    background: none; border: none; color: #667eea;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px; transition: background 0.2s;
+}
+.mark-all-btn:hover { background: #f0f0ff; }
+ 
+.notif-list { max-height: 320px; overflow-y: auto; }
+ 
+.notif-item {
+    display: flex; gap: 12px; padding: 14px 18px;
+    border-bottom: 1px solid #f9fafb;
+    cursor: pointer; transition: background 0.15s;
+}
+.notif-item:hover  { background: #f9fafb; }
+.notif-item.unread { background: #f5f3ff; }
+.notif-item.unread:hover { background: #ede9fe; }
+ 
+.notif-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    margin-top: 5px; flex-shrink: 0;
+}
+.notif-dot.queue_joined { background: #667eea; }
+.notif-dot.queue_close  { background: #f59e0b; }
+.notif-dot.queue_served { background: #10b981; }
+.notif-dot.queue_left   { background: #6b7280; }
+.notif-dot.general      { background: #8b5cf6; }
+ 
+.notif-content { flex: 1; min-width: 0; }
+.notif-message { font-size: 13px; color: #111827; line-height: 1.4; margin-bottom: 4px; }
+.notif-time    { font-size: 11px; color: #9ca3af; }
+ 
+.unread-dot {
+    width: 8px; height: 8px;
+    background: #667eea; border-radius: 50%;
+    margin-top: 6px; flex-shrink: 0;
+}
+ 
+.notif-empty {
+    text-align: center; padding: 32px 18px;
+    color: #9ca3af; font-size: 13px;
+}
+.notif-empty span { display: block; font-size: 28px; margin-bottom: 8px; }
+ 
+.notif-footer {
+    padding: 10px 18px; text-align: center;
+    border-top: 1px solid #f3f4f6;
+}
+.notif-footer button {
+    background: none; border: none;
+    color: #ef4444; font-size: 12px;
+    cursor: pointer; font-weight: 500;
+}
+.notif-footer button:hover { text-decoration: underline; }
+ 
+/* ── Toast popups ── */
+.toast-container {
+    position: fixed; bottom: 24px; right: 24px;
+    z-index: 2000;
+    display: flex; flex-direction: column; gap: 10px;
+}
+ 
+.toast {
+    background: white; border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    padding: 14px 18px;
+    display: flex; gap: 12px; align-items: flex-start;
+    width: 300px;
+    animation: toastSlideUp 0.3s ease-out;
+    border-left: 4px solid #667eea;
+}
+.toast.queue_close  { border-left-color: #f59e0b; }
+.toast.queue_served { border-left-color: #10b981; }
+ 
+@keyframes toastSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+ 
+.toast-icon { font-size: 20px; }
+.toast-body { flex: 1; }
+.toast-title { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+.toast-msg   { font-size: 12px; color: #6b7280; line-height: 1.4; }
+.toast-close {
+    background: none; border: none; color: #9ca3af;
+    cursor: pointer; font-size: 16px; line-height: 1; padding: 0;
+}
+ 
