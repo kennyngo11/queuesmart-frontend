@@ -3,7 +3,15 @@
 
 const express = require('express');
 const cors = require('cors');
+
 const authRoutes = require('./routes/auth');
+const serviceRoutes = require('./routes/service');
+const notificationRoutes = require('./routes/notifications');
+
+const queueRoutes = require('./routes/queue');
+const historyRoutes = require('./routes/history');
+const userRoutes = require('./routes/users');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,11 +22,14 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+app.use('/api/queue', queueRoutes);
+app.use('/api/history', historyRoutes);
+app.use('/api/users', userRoutes);
 
 // TODO: Other team members will add their routes here
-// app.use('/api/queue', queueRoutes);      // Member 2
-// app.use('/api/admin', adminRoutes);      // Member 3
-// app.use('/api/notifications', notificationRoutes); // Member 4
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -40,8 +51,10 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-    console.log(`QueueSmart Backend running on http://localhost:${PORT}`);
-});
+if (require.main === module){
+    app.listen(PORT, () => {
+        console.log(`QueueSmart Backend running on http://localhost:${PORT}`);
+    });
+};
 
 module.exports = app;

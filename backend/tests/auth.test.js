@@ -3,16 +3,21 @@
 
 const request = require('supertest');
 const app = require('../server');
-const { users, sessions } = require('../data/mock-data');
+const { sessions } = require('../data/mock-data');
+const pool = require('../db');
 
 describe('Authentication API Tests', () => {
 
     // Clear test data before each test
-    beforeEach(() => {
-        // Keep only the default users
-        users.length = 2;
-        sessions.length = 0;
-    });
+    beforeEach(async () => {
+    await pool.query("DELETE FROM UserProfile WHERE userId NOT IN (SELECT userId FROM UserCredentials WHERE email IN ('user@example.com', 'admin@queuesmart.com'))");
+    await pool.query("DELETE FROM UserCredentials WHERE email NOT IN ('user@example.com', 'admin@queuesmart.com')");
+    sessions.length = 0;
+});
+
+afterAll(async () => {
+    await pool.end();
+});
 
     // ============================================
     // REGISTRATION TESTS

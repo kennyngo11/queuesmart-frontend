@@ -1,4 +1,4 @@
-// frontend/js/auth.js - Updated to call backend API (Member 1)
+// js/auth.js
 
 const API_BASE_URL = 'http://localhost:3000/api';
 

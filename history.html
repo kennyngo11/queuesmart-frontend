@@ -14,9 +14,20 @@
             <h1> QueueSmart</h1>
         </div>
         <div class="top-right">
-            <button class="icon-btn" title="Notifications">
-                📧
-            </button>
+            <div class="notif-wrapper" id="notifWrapper">
+                <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
+                <span class="notif-badge" id="notifBadge"></span>
+                <div class="notif-panel" id="notifPanel">
+                    <div class="notif-header">
+                        <h3>Notifications</h3>
+                        <button class="mark-all-btn" onclick="markAllAsRead()">Mark all as read</button>
+                    </div>
+                    <div class="notif-list" id="notifList"></div>
+                    <div class="notif-footer">
+                        <button onclick="clearAllNotifications()">Clear all</button>
+                    </div>
+                </div>
+            </div>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
     </header>
@@ -42,6 +53,8 @@
             </article>
         </div>
     </main>
+<div class="toast-container" id="toastContainer"></div>
+<script src="js/notifications.js"></script>
 </body>
 
 </html>

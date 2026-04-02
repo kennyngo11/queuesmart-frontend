@@ -1,4 +1,4 @@
-// frontend/js/dashboard.js - Updated to call backend API (Member 1)
+// js/dashboard.js
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
