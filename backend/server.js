@@ -6,6 +6,7 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
 const serviceRoutes = require('./routes/service');
+const notificationRoutes = require('./routes/notifications');
 
 const queueRoutes = require('./routes/queue');
 const historyRoutes = require('./routes/history');
@@ -22,6 +23,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use('/api/queue', queueRoutes);
 app.use('/api/history', historyRoutes);
