@@ -14,8 +14,8 @@ function validateService(data) {
   if (description.length > 300) {
     return { error: new Error('Description must be at most 300 characters') };
   }
-  if (typeof duration !== 'number' || isNaN(duration)) {
-    return { error: new Error('Expected Duration must be a number') };
+  if (!Number.isInteger(duration)) {
+    return { error: new Error('Expected Duration must be an integer number') };
   }
   if (duration < 1 || duration > 240) {
     return { error: new Error('Duration must be between 1 and 240 minutes') };

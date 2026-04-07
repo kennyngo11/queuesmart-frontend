@@ -66,12 +66,16 @@ DROP TABLE IF EXISTS `queueSmart`.`Service` ;
 
 CREATE TABLE IF NOT EXISTS `queueSmart`.`Service` (
   `serviceId` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) NOT NULL,
-  `description` VARCHAR(500) NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `description` VARCHAR(300) NOT NULL,
   `expectedDuration` INT NOT NULL,
-  `priorityLevel` INT NOT NULL DEFAULT 0,
+  `priorityLevel` ENUM('low', 'medium', 'high') NOT NULL DEFAULT 'medium',
   `isActive` TINYINT NOT NULL DEFAULT 1,
-  PRIMARY KEY (`serviceId`))
+  PRIMARY KEY (`serviceId`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC) VISIBLE,
+  CONSTRAINT `chk_expectedDuration_range` CHECK (`expectedDuration` BETWEEN 1 AND 240),
+  CONSTRAINT `chk_service_name_non_empty` CHECK (CHAR_LENGTH(TRIM(`name`)) > 0),
+  CONSTRAINT `chk_service_description_non_empty` CHECK (CHAR_LENGTH(TRIM(`description`)) > 0))
 ENGINE = InnoDB;
 
 
