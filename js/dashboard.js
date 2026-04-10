@@ -2,6 +2,8 @@
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
+let selectedService = null;
+
 // Protect dashboard - redirect to login if not authenticated
 document.addEventListener('DOMContentLoaded', async function() {
     const currentUser = localStorage.getItem('queuesmartUser');
@@ -11,7 +13,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
     
-    // Parse user data
     const user = JSON.parse(currentUser);
     
     // Update welcome message with user name
@@ -20,57 +21,56 @@ document.addEventListener('DOMContentLoaded', async function() {
         welcomeText.textContent = `Welcome back, ${user.name}`;
     }
     
-    // Fetch fresh user profile from backend
-    await loadUserProfile(user.email);
-    
     // Initialize dashboard
-    initializeDashboard(user);
-    
-    // Initialize notification count
-    updateNotificationCount();
+    loadQueueStatus();
 });
 
 /**
- * Load user profile from backend
+ * Toggle service selection
  */
-async function loadUserProfile(email) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/users/profile/${email}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update stored user data with fresh profile
-            const currentUser = JSON.parse(localStorage.getItem('queuesmartUser'));
-            const updatedUser = {
-                ...currentUser,
-                ...data.user
-            };
-            localStorage.setItem('queuesmartUser', JSON.stringify(updatedUser));
-            
-            console.log('Profile loaded:', data.user);
-        }
-    } catch (error) {
-        console.error('Error loading profile:', error);
+function toggleService(el) {
+    if (el.classList.contains('selected')) {
+        el.classList.remove('selected');
+        selectedService = null;
+        return;
     }
+    document.querySelectorAll('.card ul li').forEach(li => li.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedService = el.dataset.name;
 }
 
 /**
- * Initialize dashboard with user-specific data
+ * Join selected queue
  */
-function initializeDashboard(user) {
-    // Load current queue status
-    loadQueueStatus();
-    
-    // Simulate real-time queue updates every 30 seconds
-    setInterval(updateQueuePosition, 30000);
+function joinSelectedQueue() {
+    if (!selectedService) {
+        alert('Please select a service first.');
+        return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
+    const historyKey = `queueHistory_${user.id}`;
+    const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+    history.unshift({
+        serviceName: selectedService,
+        joinedAt: new Date().toISOString(),
+        status: 'waiting'
+    });
+    localStorage.setItem(historyKey, JSON.stringify(history));
+
+    createNotification(
+        `You have joined the queue for ${selectedService}.`,
+        'queue_joined'
+    );
+
+    document.querySelectorAll('.card ul li').forEach(li => li.classList.remove('selected'));
+    selectedService = null;
 }
 
 /**
  * Load and display current queue status
  */
 function loadQueueStatus() {
-    // Check if user is in a queue (mock data for now)
-    // Member 2 will replace this with actual API call
     const userQueue = localStorage.getItem('userCurrentQueue');
     
     if (userQueue) {
@@ -81,9 +81,6 @@ function loadQueueStatus() {
     }
 }
 
-/**
- * Display queue status in dashboard
- */
 function displayQueueStatus(queueData) {
     const queueCard = document.querySelector('.card:first-child');
     if (queueCard) {
@@ -98,9 +95,6 @@ function displayQueueStatus(queueData) {
     }
 }
 
-/**
- * Display no active queue message
- */
 function displayNoQueue() {
     const queueCard = document.querySelector('.card:first-child');
     if (queueCard) {
@@ -112,150 +106,18 @@ function displayNoQueue() {
     }
 }
 
-/**
- * Update queue position (simulates real-time updates)
- * Member 2 will replace this with actual API calls
- */
-function updateQueuePosition() {
-    const userQueue = localStorage.getItem('userCurrentQueue');
-    
-    if (userQueue) {
-        const queueData = JSON.parse(userQueue);
-        
-        // Simulate position moving up
-        if (queueData.position > 1) {
-            queueData.position--;
-            queueData.estimatedWait = Math.max(5, queueData.estimatedWait - 5);
-            
-            localStorage.setItem('userCurrentQueue', JSON.stringify(queueData));
-            displayQueueStatus(queueData);
-            
-            // Show notification
-            showNotification(`Your position updated: Now #${queueData.position}`);
-        }
-    }
-}
-
-/**
- * Leave queue function
- * Member 2 will implement the actual API call
- */
 function leaveQueue() {
     if (confirm('Are you sure you want to leave the queue?')) {
         localStorage.removeItem('userCurrentQueue');
         displayNoQueue();
-        showNotification('You have left the queue');
     }
 }
 
-/**
- * Update notification count
- * Member 4 will implement the actual API call
- */
-function updateNotificationCount() {
-    const notifications = JSON.parse(localStorage.getItem('userNotifications') || '[]');
-    const unreadCount = notifications.filter(n => !n.read).length;
-    
-    const notifBtn = document.getElementById('notifBtn');
-    if (notifBtn && unreadCount > 0) {
-        notifBtn.innerHTML = `🔔 <span style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; display: flex; align-items: center; justify-content: center;">${unreadCount}</span>`;
-        notifBtn.style.position = 'relative';
-    }
-}
-
-/**
- * Show notification (helper function)
- */
-function showNotification(message) {
-    // Add to notifications array
-    const notifications = JSON.parse(localStorage.getItem('userNotifications') || '[]');
-    notifications.unshift({
-        id: Date.now(),
-        message: message,
-        timestamp: new Date().toISOString(),
-        read: false
-    });
-    
-    // Keep only last 10 notifications
-    if (notifications.length > 10) {
-        notifications.pop();
-    }
-    
-    localStorage.setItem('userNotifications', JSON.stringify(notifications));
-    updateNotificationCount();
-    
-    // Show toast notification
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #1f2937;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 1000;
-        animation: slideIn 0.3s ease-out;
-    `;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-/**
- * Logout function
- */
-async function logout() {
+function logout() {
     if (confirm('Are you sure you want to logout?')) {
-        const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
-        const token = user.token;
-        
-        try {
-            // Call backend logout
-            await fetch(`${API_BASE_URL}/auth/logout?token=${token}`);
-        } catch (error) {
-            console.error('Logout error:', error);
-        }
-        
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
         localStorage.removeItem('queuesmartUser');
         window.location.href = 'index.html';
     }
 }
-
-// Add CSS animations for toast
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-    
-    .leave-queue-btn:hover {
-        background: #dc2626 !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-    }
-`;
-document.head.appendChild(style);

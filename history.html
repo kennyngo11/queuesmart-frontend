@@ -33,25 +33,10 @@
         </div>
     </header>
     <main class="dashboard">
-        <div class="history-list">
-            <article class="history-card">
-                <div class="history-main">
-                    <h4>Academic Advising</h4>
-                </div>
-                <div class="history-meta">
-                    <span> Feb 13, 2:31PM</span>
-                    <span class="status served">Served</span>
-                </div>
-            </article>
-            <article class="history-card">
-                <div class="history-main">
-                    <h4>IT Help Desk</h4>
-                </div>
-                <div class="history-meta">
-                    <span>Feb 12, 11:10 AM</span>
-                    <span class="status left">Left</span>
-                </div>
-            </article>
+        <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <button class="logout-btn" onclick="clearHistory()">Clear History</button>
+        </div>
+        <div class="history-list" id="historyList">
         </div>
     </main>
 <div class="toast-container" id="toastContainer"></div>
@@ -64,6 +49,47 @@ function logout() {
         window.location.href = "index.html";
     }
 }
+
+function formatDate(isoString) {
+    const d = new Date(isoString);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+           ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function loadHistory() {
+    const list = document.getElementById('historyList');
+    const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
+    const historyKey = `queueHistory_${user.id}`;
+    const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+
+    if (history.length === 0) {
+        list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">No queue history yet. Join a queue from the dashboard to see your history here.</div>';
+        return;
+    }
+
+    list.innerHTML = history.map(h => `
+        <article class="history-card">
+            <div class="history-main">
+                <h4>${h.serviceName}</h4>
+            </div>
+            <div class="history-meta">
+                <span>${formatDate(h.joinedAt)}</span>
+                <span class="status ${h.status}">${h.status.charAt(0).toUpperCase() + h.status.slice(1)}</span>
+            </div>
+        </article>
+    `).join('');
+}
+
+function clearHistory() {
+    if (confirm('Are you sure you want to clear your history?')) {
+        const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
+        const historyKey = `queueHistory_${user.id}`;
+        localStorage.removeItem(historyKey);
+        loadHistory();
+    }
+}
+
+loadHistory();
 </script>
 <script src="js/notifications.js"></script>
 </body>

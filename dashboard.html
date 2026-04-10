@@ -45,11 +45,11 @@
         <div class="card">
             <h3>Available Services</h3>
             <ul>
-                <li>Academic Advising</li>
-                <li>IT Help Desk</li>
-                <li>Student Services</li>
+                <li onclick="toggleService(this)" data-name="Academic Advising">Academic Advising</li>
+                <li onclick="toggleService(this)" data-name="IT Help Desk">IT Help Desk</li>
+                <li onclick="toggleService(this)" data-name="Student Services">Student Services</li>
             </ul>
-            <button class="primary-btn" onclick="simulateJoinQueue()">Join a Queue</button>
+            <button class="primary-btn" onclick="joinSelectedQueue()">Join a Queue</button>
         </div>
     </div>
 </main>
@@ -58,22 +58,5 @@
 
 <script src="js/notifications.js"></script>
 <script src="js/dashboard.js"></script>
-<script>
-    function simulateJoinQueue() {
-        createNotification(
-            'You have joined the queue for Academic Advising. Your position is #3.',
-            'queue_joined'
-        );
-    }
-
-function logout() {
-        if (confirm("Are you sure you want to logout?")) {
-            localStorage.removeItem("user");
-            localStorage.removeItem("token");
-            localStorage.removeItem("queuesmartUser");
-            window.location.href = "index.html";
-        }
-    }
-</script>
 </body>
 </html>

@@ -137,7 +137,7 @@ function showToast(message, type = 'general') {
         </div>
         <button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
     container.appendChild(toast);
-    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 5000);
+    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 15000);
 }
 
 // ── Create a notification (call this when queue events happen) ────────────────
