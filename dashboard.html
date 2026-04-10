@@ -12,11 +12,12 @@
         <span class="welcome-text">Welcome back</span>
     </div>
     <div class="top-center">
-        <h1>QueueSmart</h1>
+        <a href="dashboard.html" style="text-decoration:none;"><h1>QueueSmart</h1></a>
     </div>
     <div class="top-right">
+        <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
         <div class="notif-wrapper" id="notifWrapper">
-            <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
+            <button class="icon-btn" id="notifBtn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
             <span class="notif-badge" id="notifBadge"></span>
             <div class="notif-panel" id="notifPanel">
                 <div class="notif-header">
@@ -65,10 +66,13 @@
         );
     }
 
-    function logout() {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        window.location.href = 'index.html';
+function logout() {
+        if (confirm("Are you sure you want to logout?")) {
+            localStorage.removeItem("user");
+            localStorage.removeItem("token");
+            localStorage.removeItem("queuesmartUser");
+            window.location.href = "index.html";
+        }
     }
 </script>
 </body>

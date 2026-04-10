@@ -14,9 +14,10 @@
             <span class="welcome-text">Queue Status</span>
         </div>
         <div class="top-center">
-            <h1>QueueSmart</h1>
+            <a href="dashboard.html" style="text-decoration:none;"><h1>QueueSmart</h1></a>
         </div>
         <div class="top-right">
+            <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
             <div class="notif-wrapper" id="notifWrapper">
                 <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
                 <span class="notif-badge" id="notifBadge"></span>
@@ -57,9 +58,12 @@
         }
 
         function logout() {
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            window.location.href = 'index.html';
+            if (confirm("Are you sure you want to logout?")) {
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+                localStorage.removeItem('queuesmartUser');
+                window.location.href = 'index.html';
+            }
         }
 
         setTimeout(() => {
@@ -67,8 +71,3 @@
         }, 5000);
 
     </script>
-    <div class="toast-container" id="toastContainer"></div>
-    <script src="js/notifications.js"></script>
-</body>
-
-</html>

@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS `queueSmart`.`Notifications` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `userId` INT NOT NULL,
   `message` VARCHAR(255) NOT NULL,
+  `type` ENUM('queue_joined', 'queue_close', 'queue_served', 'queue_left', 'general') NOT NULL DEFAULT 'general',
   `createdAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `status` ENUM('sent', 'viewed') NOT NULL DEFAULT 'sent',
   `viewedAt` DATETIME NULL,
@@ -147,7 +148,8 @@ CREATE TABLE IF NOT EXISTS `queueSmart`.`Notifications` (
     FOREIGN KEY (`userId`)
     REFERENCES `queueSmart`.`UserCredentials` (`userId`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `chk_message_non_empty` CHECK (CHAR_LENGTH(TRIM(`message`)) > 0))
 ENGINE = InnoDB;
 
 

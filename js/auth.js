@@ -46,6 +46,7 @@ if (loginForm) {
             if (data.success) {
                 // Store user session
                 localStorage.setItem('queuesmartUser', JSON.stringify({
+                    id: data.user.id,
                     email: data.user.email,
                     name: data.user.name,
                     role: data.user.role,
@@ -122,6 +123,7 @@ if (registerForm) {
                         
                         if (loginData.success) {
                             localStorage.setItem('queuesmartUser', JSON.stringify({
+                                id: loginData.user.id,
                                 email: loginData.user.email,
                                 name: loginData.user.name,
                                 role: loginData.user.role,

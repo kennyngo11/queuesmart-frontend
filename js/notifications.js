@@ -23,8 +23,8 @@ const API = 'http://localhost:3000/api';
 
 function getCurrentUserId() {
     try {
-        return JSON.parse(localStorage.getItem('user') || '{}').id || 2;
-    } catch { return 2; }
+        return JSON.parse(localStorage.getItem('queuesmartUser') || '{}').id || null;
+    } catch { return null; }
 }
 
 const userId = getCurrentUserId();

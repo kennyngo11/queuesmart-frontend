@@ -1,4 +1,4 @@
-const { notifications } = require('../data/mock-data');
+const pool = require('../db');
 
 const VALID_TYPES = ['queue_joined', 'queue_close', 'queue_served', 'queue_left', 'general'];
 
@@ -15,95 +15,137 @@ const validateNotificationInput = ({ userId, message, type }) => {
     return null;
 };
 
-const getUserNotifications = (req, res) => {
+function mapRow(row) {
+    return {
+        id: row.id,
+        userId: row.userId,
+        message: row.message,
+        type: row.type,
+        read: row.status === 'viewed',
+        createdAt: row.createdAt
+    };
+}
+
+const getUserNotifications = async (req, res) => {
     try {
         const userId = parseInt(req.params.userId, 10);
         if (isNaN(userId)) {
             return res.status(400).json({ success: false, error: 'userId must be a number' });
         }
-        const userNotifications = notifications
-            .filter(n => n.userId === userId)
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const [rows] = await pool.query(
+            `SELECT id, userId, message, type, status, createdAt
+             FROM Notifications
+             WHERE userId = ?
+             ORDER BY createdAt DESC`,
+            [userId]
+        );
+        const notifications = rows.map(mapRow);
         res.status(200).json({
             success: true,
-            notifications: userNotifications,
-            unreadCount: userNotifications.filter(n => !n.read).length
+            notifications,
+            unreadCount: notifications.filter(n => !n.read).length
         });
     } catch (error) {
+        console.error('getUserNotifications error:', error);
         res.status(500).json({ success: false, error: 'Server error fetching notifications' });
     }
 };
 
-const createNotification = (req, res) => {
+const createNotification = async (req, res) => {
     try {
         const { userId, message, type } = req.body;
         const validationError = validateNotificationInput({ userId, message, type });
         if (validationError) {
             return res.status(400).json({ success: false, error: validationError });
         }
+        const trimmedMessage = message.trim();
+        const [result] = await pool.query(
+            `INSERT INTO Notifications (userId, message, type, status)
+             VALUES (?, ?, ?, 'sent')`,
+            [userId, trimmedMessage, type]
+        );
         const newNotification = {
-            id: notifications.length > 0 ? Math.max(...notifications.map(n => n.id)) + 1 : 1,
+            id: result.insertId,
             userId,
-            message: message.trim(),
+            message: trimmedMessage,
             type,
             read: false,
             createdAt: new Date().toISOString()
         };
-        notifications.push(newNotification);
         res.status(201).json({ success: true, message: 'Notification created', notification: newNotification });
     } catch (error) {
+        console.error('createNotification error:', error);
         res.status(500).json({ success: false, error: 'Server error creating notification' });
     }
 };
 
-const markAsRead = (req, res) => {
+const markAsRead = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) {
             return res.status(400).json({ success: false, error: 'id must be a number' });
         }
-        const notification = notifications.find(n => n.id === id);
-        if (!notification) {
+        const [result] = await pool.query(
+            `UPDATE Notifications SET status = 'viewed', viewedAt = NOW() WHERE id = ?`,
+            [id]
+        );
+        if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, error: 'Notification not found' });
         }
-        notification.read = true;
-        res.status(200).json({ success: true, message: 'Notification marked as read', notification });
+        const [rows] = await pool.query(
+            `SELECT id, userId, message, type, status, createdAt FROM Notifications WHERE id = ?`,
+            [id]
+        );
+        res.status(200).json({ success: true, message: 'Notification marked as read', notification: mapRow(rows[0]) });
     } catch (error) {
+        console.error('markAsRead error:', error);
         res.status(500).json({ success: false, error: 'Server error updating notification' });
     }
 };
 
-const markAllAsRead = (req, res) => {
+const markAllAsRead = async (req, res) => {
     try {
         const userId = parseInt(req.params.userId, 10);
         if (isNaN(userId)) {
             return res.status(400).json({ success: false, error: 'userId must be a number' });
         }
-        const userNotifications = notifications.filter(n => n.userId === userId);
-        if (userNotifications.length === 0) {
+        const [check] = await pool.query(
+            `SELECT COUNT(*) AS total, SUM(status = 'sent') AS unread FROM Notifications WHERE userId = ?`,
+            [userId]
+        );
+        if (check[0].total === 0) {
             return res.status(404).json({ success: false, error: 'No notifications found for this user' });
         }
-        let updatedCount = 0;
-        userNotifications.forEach(n => { if (!n.read) { n.read = true; updatedCount++; } });
+        const updatedCount = Number(check[0].unread) || 0;
+        if (updatedCount > 0) {
+            await pool.query(
+                `UPDATE Notifications SET status = 'viewed', viewedAt = NOW() WHERE userId = ? AND status = 'sent'`,
+                [userId]
+            );
+        }
         res.status(200).json({ success: true, message: `${updatedCount} notification(s) marked as read`, updatedCount });
     } catch (error) {
+        console.error('markAllAsRead error:', error);
         res.status(500).json({ success: false, error: 'Server error updating notifications' });
     }
 };
 
-const deleteNotification = (req, res) => {
+const deleteNotification = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id)) {
             return res.status(400).json({ success: false, error: 'id must be a number' });
         }
-        const index = notifications.findIndex(n => n.id === id);
-        if (index === -1) {
+        const [result] = await pool.query(
+            `DELETE FROM Notifications WHERE id = ?`,
+            [id]
+        );
+        if (result.affectedRows === 0) {
             return res.status(404).json({ success: false, error: 'Notification not found' });
         }
-        notifications.splice(index, 1);
         res.status(200).json({ success: true, message: 'Notification deleted' });
     } catch (error) {
+        console.error('deleteNotification error:', error);
         res.status(500).json({ success: false, error: 'Server error deleting notification' });
     }
 };

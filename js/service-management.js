@@ -2,7 +2,12 @@
 // JS for Service Management page (edit/create services)
 
 function logout() {
-    alert('Logout functionality would be implemented here');
+    if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('queuesmartUser');
+        window.location.href = 'index.html';
+    }
 }
 
 // Helper: Clear error messages

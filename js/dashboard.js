@@ -156,9 +156,9 @@ function updateNotificationCount() {
     const notifications = JSON.parse(localStorage.getItem('userNotifications') || '[]');
     const unreadCount = notifications.filter(n => !n.read).length;
     
-    const notifBtn = document.querySelector('.icon-btn');
+    const notifBtn = document.getElementById('notifBtn');
     if (notifBtn && unreadCount > 0) {
-        notifBtn.innerHTML = `📧 <span style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; display: flex; align-items: center; justify-content: center;">${unreadCount}</span>`;
+        notifBtn.innerHTML = `🔔 <span style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; display: flex; align-items: center; justify-content: center;">${unreadCount}</span>`;
         notifBtn.style.position = 'relative';
     }
 }

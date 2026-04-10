@@ -112,6 +112,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #111827;
+    -webkit-text-fill-color: initial;
+    text-decoration: none;
 }
 
 .icon-btn:hover {
@@ -168,6 +171,8 @@ body {
     align-items: center;
     margin-bottom: 30px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 100;
 }
 
 .top-left .welcome-text {
@@ -862,4 +867,3 @@ button[type="submit"]:active {
     background: none; border: none; color: #9ca3af;
     cursor: pointer; font-size: 16px; line-height: 1; padding: 0;
 }
- 
