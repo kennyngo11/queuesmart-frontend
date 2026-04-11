@@ -1,113 +1,133 @@
 const request = require('supertest');
 const app = require('../server');
-const { queues, queueHistory, notifications, services, users } = require('../data/mock-data');
-
-
+const pool = require('../db');
 
 describe('Queue Management API Tests', () => {
-  beforeEach(() => {
-    queues.length = 0;
-    queueHistory.length = 0;
-    notifications.length = 0;
+  let userId1;
+  let userId2;
+  let serviceId1;
+  let serviceId2;
+  let queueId1;
 
-    services.length = 0;
-    services.push(
-      {
-        id: 1,
-        name: 'Academic Advising',
-        description: 'Get help with course selection and academic planning',
-        expectedDuration: 15,
-        priority: 'medium',
-        status: 'open',
-        createdAt: '2024-02-01T10:00:00.000Z'
-      },
-      {
-        id: 2,
-        name: 'IT Help Desk',
-        description: 'Technical support for students',
-        expectedDuration: 10,
-        priority: 'high',
-        status: 'open',
-        createdAt: '2024-02-01T10:00:00.000Z'
-      },
-      {
-        id: 3,
-        name: 'Student Services',
-        description: 'General student inquiries and support',
-        expectedDuration: 20,
-        priority: 'low',
-        status: 'closed',
-        createdAt: '2024-02-01T10:00:00.000Z'
-      }
+  beforeEach(async () => {
+    // Clean dependent tables first
+    await pool.query('DELETE FROM Notifications');
+    await pool.query('DELETE FROM QueueEntry');
+    await pool.query('DELETE FROM Queues');
+    await pool.query('DELETE FROM UserProfile');
+    await pool.query('DELETE FROM UserCredentials');
+    await pool.query('DELETE FROM Service');
+
+    // Seed users
+    const [user1Result] = await pool.query(
+      `INSERT INTO UserCredentials (email, passwordHash, role)
+       VALUES ('user1@example.com', '$2b$10$abcdefghijklmnopqrstuv', 'user')`
+    );
+    userId1 = user1Result.insertId;
+
+    const [user2Result] = await pool.query(
+      `INSERT INTO UserCredentials (email, passwordHash, role)
+       VALUES ('user2@example.com', '$2b$10$abcdefghijklmnopqrstuv', 'user')`
+    );
+    userId2 = user2Result.insertId;
+
+    await pool.query(
+      `INSERT INTO UserProfile (userId, fullName, phone)
+       VALUES (?, 'User One', '1111111111')`,
+      [userId1]
     );
 
-    users.length = 0;
-    users.push(
-      {
-        id: 1,
-        email: 'admin@queuesmart.com',
-        password: 'admin123',
-        name: 'Admin',
-        role: 'admin',
-        createdAt: '2024-02-01T10:00:00.000Z'
-      },
-      {
-        id: 2,
-        email: 'user1@example.com',
-        password: 'password123',
-        name: 'user2',
-        role: 'user',
-        createdAt: '2024-02-10T14:30:00.000Z'
-      },
-      {
-        id: 3,
-        email: 'user2@example.com',
-        password: 'password123',
-        name: 'user2',
-        role: 'user',
-        createdAt: '2024-02-10T14:30:00.000Z'
-      }
+    await pool.query(
+      `INSERT INTO UserProfile (userId, fullName, phone)
+       VALUES (?, 'User Two', '2222222222')`,
+      [userId2]
     );
-});
 
-describe('POST /api/queue/join', () => {
+    // Seed services
+    const [service1Result] = await pool.query(
+      `INSERT INTO Service (name, description, expectedDuration, priorityLevel, isActive)
+       VALUES ('Academic Advising', 'Course planning help', 15, 'medium', 1)`
+    );
+    serviceId1 = service1Result.insertId;
+
+    const [service2Result] = await pool.query(
+      `INSERT INTO Service (name, description, expectedDuration, priorityLevel, isActive)
+       VALUES ('Student Services', 'General help', 20, 'low', 0)`
+    );
+    serviceId2 = service2Result.insertId;
+
+    // Open queue for service 1
+    const [queueResult] = await pool.query(
+      `INSERT INTO Queues (serviceId, status)
+       VALUES (?, 'open')`,
+      [serviceId1]
+    );
+    queueId1 = queueResult.insertId;
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  describe('POST /api/queue/join', () => {
     test('should join queue successfully', async () => {
       const res = await request(app)
         .post('/api/queue/join')
-        .send({ userId: 2, serviceId: 1 });
+        .send({ userId: userId1, serviceId: serviceId1 });
 
       expect(res.statusCode).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.queueEntry.userId).toBe(2);
-      expect(res.body.queueEntry.serviceId).toBe(1);
+      expect(res.body.queueEntry.userId).toBe(userId1);
+      expect(res.body.queueEntry.serviceId).toBe(serviceId1);
       expect(res.body.queueEntry.position).toBe(1);
-      expect(notifications.length).toBe(1);
+
+      const [rows] = await pool.query(
+        `SELECT *
+         FROM QueueEntry
+         WHERE userId = ? AND queueId = ? AND status = 'waiting'`,
+        [userId1, queueId1]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].positionInQueue).toBe(1);
+
+      const [notifRows] = await pool.query(
+        `SELECT *
+         FROM Notifications
+         WHERE userId = ?`,
+        [userId1]
+      );
+
+      expect(notifRows.length).toBe(1);
+      expect(notifRows[0].type).toBe('queue_joined');
     });
 
     test('should reject missing fields', async () => {
       const res = await request(app)
         .post('/api/queue/join')
-        .send({ userId: 2 });
+        .send({ userId: userId1 });
 
       expect(res.statusCode).toBe(400);
       expect(res.body.success).toBe(false);
     });
 
-    test('should reject closed service', async () => {
+    test('should reject inactive service', async () => {
       const res = await request(app)
         .post('/api/queue/join')
-        .send({ userId: 2, serviceId: 3 });
+        .send({ userId: userId1, serviceId: serviceId2 });
 
       expect(res.statusCode).toBe(400);
       expect(res.body.error).toBe('Service is not currently open');
     });
 
     test('should reject duplicate queue entry', async () => {
-      await request(app).post('/api/queue/join').send({ userId: 2, serviceId: 1 });
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
       const res = await request(app)
         .post('/api/queue/join')
-        .send({ userId: 2, serviceId: 1 });
+        .send({ userId: userId1, serviceId: serviceId1 });
 
       expect(res.statusCode).toBe(409);
       expect(res.body.success).toBe(false);
@@ -116,10 +136,15 @@ describe('POST /api/queue/join', () => {
 
   describe('GET /api/queue/current/:userId', () => {
     test('should get current queue info with wait time', async () => {
-      await request(app).post('/api/queue/join').send({ userId: 2, serviceId: 1 });
-      await request(app).post('/api/queue/join').send({ userId: 3, serviceId: 1 });
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
-      const res = await request(app).get('/api/queue/current/3');
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId2, serviceId: serviceId1 });
+
+      const res = await request(app).get(`/api/queue/current/${userId2}`);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
@@ -129,7 +154,7 @@ describe('POST /api/queue/join', () => {
     });
 
     test('should return 404 when no active queue exists', async () => {
-      const res = await request(app).get('/api/queue/current/2');
+      const res = await request(app).get(`/api/queue/current/${userId1}`);
 
       expect(res.statusCode).toBe(404);
       expect(res.body.success).toBe(false);
@@ -138,45 +163,131 @@ describe('POST /api/queue/join', () => {
 
   describe('POST /api/queue/leave', () => {
     test('should leave queue successfully', async () => {
-      await request(app).post('/api/queue/join').send({ userId: 2, serviceId: 1 });
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
       const res = await request(app)
         .post('/api/queue/leave')
-        .send({ userId: 2, serviceId: 1 });
+        .send({ userId: userId1, serviceId: serviceId1 });
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(queues.length).toBe(0);
-      expect(queueHistory.length).toBe(1);
-      expect(queueHistory[0].status).toBe('left');
+
+      const [rows] = await pool.query(
+        `SELECT *
+         FROM QueueEntry
+         WHERE userId = ? AND queueId = ?`,
+        [userId1, queueId1]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].status).toBe('canceled');
+      expect(rows[0].cancelledAt).not.toBeNull();
+    });
+
+    test('should reorder remaining users after leave', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
+
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId2, serviceId: serviceId1 });
+
+      await request(app)
+        .post('/api/queue/leave')
+        .send({ userId: userId1, serviceId: serviceId1 });
+
+      const [rows] = await pool.query(
+        `SELECT *
+         FROM QueueEntry
+         WHERE userId = ? AND status = 'waiting'`,
+        [userId2]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].positionInQueue).toBe(1);
     });
   });
 
-  describe('GET /api/history/:userId', () => {
-    test('should return queue history for a user', async () => {
-      await request(app).post('/api/queue/join').send({ userId: 2, serviceId: 1 });
-      await request(app).post('/api/queue/leave').send({ userId: 2, serviceId: 1 });
+  describe('Queue history via QueueEntry statuses', () => {
+    test('should show served/canceled records in QueueEntry', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
-      const res = await request(app).get('/api/history/2');
+      await request(app)
+        .post('/api/queue/leave')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
-      expect(res.statusCode).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(Array.isArray(res.body.history)).toBe(true);
-      expect(res.body.history.length).toBe(1);
+      const [rows] = await pool.query(
+        `SELECT status, joinedAt, cancelledAt
+         FROM QueueEntry
+         WHERE userId = ?`,
+        [userId1]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].status).toBe('canceled');
+      expect(rows[0].joinedAt).not.toBeNull();
+      expect(rows[0].cancelledAt).not.toBeNull();
     });
   });
 
-    describe('POST /api/queue/serve-next/:serviceId', () => {
-    test('should serve next user and move to history', async () => {
-      await request(app).post('/api/queue/join').send({ userId: 2, serviceId: 1 });
+  describe('POST /api/queue/serve-next/:serviceId', () => {
+    test('should serve next user successfully', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
 
-      const res = await request(app).post('/api/queue/serve-next/1');
+      const res = await request(app)
+        .post(`/api/queue/serve-next/${serviceId1}`);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(queueHistory.length).toBe(1);
-      expect(queueHistory[0].status).toBe('served');
-      expect(queues.length).toBe(0);
+
+      const [rows] = await pool.query(
+        `SELECT *
+         FROM QueueEntry
+         WHERE userId = ?`,
+        [userId1]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].status).toBe('served');
+      expect(rows[0].servedAt).not.toBeNull();
+    });
+
+    test('should reorder remaining users after serve-next', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
+
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId2, serviceId: serviceId1 });
+
+      await request(app)
+        .post(`/api/queue/serve-next/${serviceId1}`);
+
+      const [rows] = await pool.query(
+        `SELECT *
+         FROM QueueEntry
+         WHERE userId = ? AND status = 'waiting'`,
+        [userId2]
+      );
+
+      expect(rows.length).toBe(1);
+      expect(rows[0].positionInQueue).toBe(1);
+    });
+
+    test('should return 404 if nobody is waiting', async () => {
+      const res = await request(app)
+        .post(`/api/queue/serve-next/${serviceId1}`);
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.success).toBe(false);
     });
   });
 });

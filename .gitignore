@@ -203,3 +203,5 @@ backend/node_modules/path-to-regexp/index.js
 backend/node_modules/brace-expansion/index.js
 .env
 backend/.env
+backend/coverage/lcov-report/controllers/notification-controller.js.html
+backend/coverage/lcov-report/routes/notifications.js.html

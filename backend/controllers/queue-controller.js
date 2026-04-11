@@ -1,9 +1,10 @@
-const { queues, queueHistory, services, users, notifications } = require('../data/mock-data');
+const pool = require('../db');
+//const { queues, queueHistory, services, users, notifications } = require('../data/mock-data');
 const { validateJoinQueue, validateLeaveQueue } = require('../utils/queue-validators');
 const { estimateWaitTime } = require('../utils/wait-time');
 
 
-const joinQueue = (req, res) => {
+const joinQueue = async (req, res) => {
   try {
     const { error } = validateJoinQueue(req.body);
     if (error) {
@@ -16,71 +17,118 @@ const joinQueue = (req, res) => {
     const userId = Number(req.body.userId);
     const serviceId = Number(req.body.serviceId);
 
-    const user = users.find(u => u.id === userId);
-    if (!user) {
+    const [userRows] = await pool.query(
+      `SELECT uc.userId, uc.email, up.fullName
+       FROM UserCredentials uc
+       LEFT JOIN UserProfile up ON up.userId = uc.userId
+       WHERE uc.userId = ?`,
+      [userId]
+    );
+
+    if (userRows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
       });
     }
 
-    const service = services.find(s => s.id === serviceId);
-    if (!service) {
+    const [serviceRows] = await pool.query(
+      `SELECT serviceId, name, expectedDuration, isActive
+       FROM Service
+       WHERE serviceId = ?`,
+      [serviceId]
+    );
+
+    if (serviceRows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Service not found'
       });
     }
 
-    if (service.status !== 'open') {
+    const service = serviceRows[0];
+
+    if (Number(service.isActive) !== 1) {
       return res.status(400).json({
         success: false,
         error: 'Service is not currently open'
       });
     }
 
-    const existingEntry = queues.find(
-      q => q.userId === userId && q.serviceId === serviceId && q.status === 'waiting'
+    // IMPORTANT: get real queueId from Queues table, not serviceId
+    const [queueRows] = await pool.query(
+      `SELECT queueId
+       FROM Queues
+       WHERE serviceId = ? AND status = 'open'
+       ORDER BY queueId DESC
+       LIMIT 1`,
+      [serviceId]
     );
 
-    if (existingEntry) {
+    let queueId;
+
+    if (queueRows.length > 0) {
+      queueId = queueRows[0].queueId;
+    } else {
+      const [queueInsert] = await pool.query(
+        `INSERT INTO Queues (serviceId, status, createdOn)
+         VALUES (?, 'open', NOW())`,
+        [serviceId]
+      );
+      queueId = queueInsert.insertId;
+    }
+
+    const [duplicateRows] = await pool.query(
+      `SELECT queueEntryId
+       FROM QueueEntry
+       WHERE queueId = ? AND userId = ? AND status = 'waiting'`,
+      [queueId, userId]
+    );
+
+    if (duplicateRows.length > 0) {
       return res.status(409).json({
         success: false,
         error: 'User is already in this queue'
       });
     }
 
-    const sameServiceWaiting = queues
-      .filter(q => q.serviceId === serviceId && q.status === 'waiting')
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS count
+       FROM QueueEntry
+       WHERE queueId = ? AND status = 'waiting'`,
+      [queueId]
+    );
 
-    const nextPosition = sameServiceWaiting.length + 1;
+    const nextPosition = countRows[0].count + 1;
 
-    const newEntry = {
-      id: queues.length ? Math.max(...queues.map(q => q.id)) + 1 : 1,
-      serviceId,
-      userId,
-      position: nextPosition,
-      status: 'waiting',
-      joinedAt: new Date().toISOString()
-    };
+    const [result] = await pool.query(
+      `INSERT INTO QueueEntry
+       (queueId, userId, positionInQueue, joinedAt, status)
+       VALUES (?, ?, ?, NOW(), 'waiting')`,
+      [queueId, userId, nextPosition]
+    );
 
-    queues.push(newEntry);
-
-    const notification = {
-      id: notifications.length ? Math.max(...notifications.map(n => n.id)) + 1 : 1,
-      userId,
-      message: `You have joined the queue for ${service.name}`,
-      type: 'queue_joined',
-      read: false,
-      createdAt: new Date().toISOString()
-    };
-
-    notifications.push(notification);
+    try {
+      await pool.query(
+        `INSERT INTO Notifications (userId, message, type, status, createdAt)
+         VALUES (?, ?, 'queue_joined', 'sent', NOW())`,
+        [userId, `You have joined the queue for ${service.name}`]
+      );
+    } catch (notifErr) {
+      console.warn('Notification insert skipped:', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,
       message: 'Joined queue successfully',
-      queueEntry: newEntry
+      queueEntry: {
+        id: result.insertId,
+        queueId,
+        serviceId,
+        userId,
+        position: nextPosition,
+        status: 'waiting'
+      }
     });
   } catch (err) {
     console.error('joinQueue error:', err);
@@ -91,7 +139,7 @@ const joinQueue = (req, res) => {
   }
 };
 
-const leaveQueue = (req, res) => {
+const leaveQueue = async (req, res) => {
   try {
     const { error } = validateLeaveQueue(req.body);
     if (error) {
@@ -104,40 +152,58 @@ const leaveQueue = (req, res) => {
     const userId = Number(req.body.userId);
     const serviceId = Number(req.body.serviceId);
 
-    const queueIndex = queues.findIndex(
-      q => q.userId === userId && q.serviceId === serviceId && q.status === 'waiting'
+    const [entryRows] = await pool.query(
+      `SELECT
+          qe.queueEntryId,
+          qe.queueId,
+          qe.userId,
+          qe.positionInQueue,
+          qe.joinedAt,
+          s.serviceId,
+          s.name AS serviceName
+       FROM QueueEntry qe
+       INNER JOIN Queues q ON q.queueId = qe.queueId
+       INNER JOIN Service s ON s.serviceId = q.serviceId
+       WHERE qe.userId = ?
+         AND s.serviceId = ?
+         AND qe.status = 'waiting'
+       LIMIT 1`,
+      [userId, serviceId]
     );
 
-    if (queueIndex === -1) {
+    if (entryRows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Active queue entry not found'
       });
     }
 
-    const entry = queues[queueIndex];
-    const service = services.find(s => s.id === serviceId);
+    const entry = entryRows[0];
 
-    const historyEntry = {
-      id: queueHistory.length ? Math.max(...queueHistory.map(h => h.id)) + 1 : 1,
-      userId: entry.userId,
-      serviceId: entry.serviceId,
-      serviceName: service ? service.name : 'Unknown Service',
-      joinedAt: entry.joinedAt,
-      leftAt: new Date().toISOString(),
-      status: 'left'
-    };
+    await pool.query(
+      `UPDATE QueueEntry
+      SET status = 'canceled',
+          cancelledAt = NOW()
+      WHERE queueEntryId = ?`,
+      [entry.queueEntryId]
+    );
 
-    queueHistory.push(historyEntry);
-    queues.splice(queueIndex, 1);
+    const [remainingRows] = await pool.query(
+      `SELECT queueEntryId
+       FROM QueueEntry
+       WHERE queueId = ? AND status = 'waiting'
+       ORDER BY positionInQueue ASC`,
+      [entry.queueId]
+    );
 
-    const remainingSameService = queues
-      .filter(q => q.serviceId === serviceId && q.status === 'waiting')
-      .sort((a, b) => a.position - b.position);
-
-    remainingSameService.forEach((q, index) => {
-      q.position = index + 1;
-    });
+    for (let i = 0; i < remainingRows.length; i++) {
+      await pool.query(
+        `UPDATE QueueEntry
+         SET positionInQueue = ?
+         WHERE queueEntryId = ?`,
+        [i + 1, remainingRows[i].queueEntryId]
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -153,7 +219,8 @@ const leaveQueue = (req, res) => {
 };
 
 
-const getCurrentQueue = (req, res) => {
+
+const getCurrentQueue = async (req, res) => {
   try {
     const userId = Number(req.params.userId);
 
@@ -164,33 +231,67 @@ const getCurrentQueue = (req, res) => {
       });
     }
 
-    const entry = queues.find(q => q.userId === userId && q.status === 'waiting');
+    const [rows] = await pool.query(
+      `SELECT
+          qe.queueEntryId,
+          qe.queueId,
+          qe.userId,
+          qe.positionInQueue,
+          qe.joinedAt,
+          qe.status,
+          s.serviceId,
+          s.name AS serviceName,
+          s.expectedDuration
+       FROM QueueEntry qe
+       INNER JOIN Queues q ON q.queueId = qe.queueId
+       INNER JOIN Service s ON s.serviceId = q.serviceId
+       WHERE qe.userId = ?
+         AND qe.status = 'waiting'
+       ORDER BY qe.joinedAt ASC
+       LIMIT 1`,
+      [userId]
+    );
 
-    if (!entry) {
+    if (rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'No active queue entry found'
       });
     }
 
-    const service = services.find(s => s.id === entry.serviceId);
-    const sameServiceWaiting = queues
-      .filter(q => q.serviceId === entry.serviceId && q.status === 'waiting')
+    const entry = rows[0];
 
-    const peopleAhead = sameServiceWaiting.filter(q => q.position < entry.position).length;
-    const serviceDuration = service ? service.expectedDuration : 0;
-    const estimatedWaitMinutes = estimateWaitTime(peopleAhead, serviceDuration);
+    const [aheadRows] = await pool.query(
+      `SELECT COUNT(*) AS count
+       FROM QueueEntry
+       WHERE queueId = ?
+         AND status = 'waiting'
+         AND positionInQueue < ?`,
+      [entry.queueId, entry.positionInQueue]
+    );
+
+    const peopleAhead = aheadRows[0].count;
+    const estimatedWaitMinutes = estimateWaitTime(
+      peopleAhead,
+      Number(entry.expectedDuration || 0)
+    );
 
     return res.status(200).json({
-      success: true,
-      queue: {
-        ...entry,
-        serviceName: service ? service.name : null,
-        peopleAhead,
-        estimatedWaitMinutes
-      }
-    });
-  } catch (err) {
+        success: true,
+        queue: {
+          id: entry.queueEntryId,
+          queueId: entry.queueId,
+          serviceId: entry.serviceId,
+          serviceName: entry.serviceName,
+          userId: entry.userId,
+          position: entry.positionInQueue,
+          status: entry.status,
+          joinedAt: entry.joinedAt,
+          peopleAhead,
+          estimatedWaitMinutes
+        }
+      });
+    } catch (err) {
     console.error('getCurrentQueue error:', err);
     return res.status(500).json({
       success: false,
@@ -199,7 +300,7 @@ const getCurrentQueue = (req, res) => {
   }
 };
 
-const serveNext = (req, res) => {
+const serveNext = async (req, res) => {
   try {
     const serviceId = Number(req.params.serviceId);
 
@@ -210,46 +311,69 @@ const serveNext = (req, res) => {
       });
     }
 
-    const waitingEntries = queues
-      .filter(q => q.serviceId === serviceId && q.status === 'waiting')
-      .sort((a, b) => a.position - b.position);
+    const [rows] = await pool.query(
+      `SELECT
+          qe.queueEntryId,
+          qe.queueId,
+          qe.userId,
+          qe.positionInQueue,
+          qe.joinedAt,
+          s.serviceId,
+          s.name AS serviceName
+       FROM QueueEntry qe
+       INNER JOIN Queues q ON q.queueId = qe.queueId
+       INNER JOIN Service s ON s.serviceId = q.serviceId
+       WHERE s.serviceId = ?
+         AND qe.status = 'waiting'
+       ORDER BY qe.positionInQueue ASC
+       LIMIT 1`,
+      [serviceId]
+    );
 
-    if (waitingEntries.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'No users are waiting in this queue'
       });
     }
 
-    const nextEntry = waitingEntries[0];
-    const queueIndex = queues.findIndex(q => q.id === nextEntry.id);
-    const service = services.find(s => s.id === serviceId);
+    const nextEntry = rows[0];
 
-    const historyEntry = {
-      id: queueHistory.length ? Math.max(...queueHistory.map(h => h.id)) + 1 : 1,
-      userId: nextEntry.userId,
-      serviceId: nextEntry.serviceId,
-      serviceName: service ? service.name : 'Unknown Service',
-      joinedAt: nextEntry.joinedAt,
-      servedAt: new Date().toISOString(),
-      status: 'served'
-    };
+await pool.query(
+  `UPDATE QueueEntry
+   SET status = 'served',
+       servedAt = NOW()
+   WHERE queueEntryId = ?`,
+  [nextEntry.queueEntryId]
+);
 
-    queueHistory.push(historyEntry);
-    queues.splice(queueIndex, 1);
+    const [remainingRows] = await pool.query(
+      `SELECT queueEntryId
+       FROM QueueEntry
+       WHERE queueId = ? AND status = 'waiting'
+       ORDER BY positionInQueue ASC`,
+      [nextEntry.queueId]
+    );
 
-    const remainingSameService = queues
-      .filter(q => q.serviceId === serviceId && q.status === 'waiting')
-      .sort((a, b) => a.position - b.position);
-
-    remainingSameService.forEach((q, index) => {
-      q.position = index + 1;
-    });
+    for (let i = 0; i < remainingRows.length; i++) {
+      await pool.query(
+        `UPDATE QueueEntry
+         SET positionInQueue = ?
+         WHERE queueEntryId = ?`,
+        [i + 1, remainingRows[i].queueEntryId]
+      );
+    }
 
     return res.status(200).json({
       success: true,
       message: 'Next user served successfully',
-      servedEntry: historyEntry
+      servedEntry: {
+        userId: nextEntry.userId,
+        serviceId: nextEntry.serviceId,
+        serviceName: nextEntry.serviceName,
+        joinedAt: nextEntry.joinedAt,
+        status: 'served'
+      }
     });
   } catch (err) {
     console.error('serveNext error:', err);
