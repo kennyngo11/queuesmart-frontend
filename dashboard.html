@@ -37,17 +37,20 @@
 <main class="dashboard">
     <div class="card-grid">
         <div class="card">
-            <h3>Current Queue</h3>
-            <p><strong>Position:</strong> #3</p>
-            <p><strong>Estimated Wait:</strong> 15 minutes</p>
-            <span class="status waiting">Waiting</span>
+            <h2>Current Queue</h2>
+            <p><strong>Service:</strong> <span id="dashServiceName">Loading...</span></p>
+            <p><strong>Position:</strong> <span id="dashPosition">-</span></p>
+            <p><strong>Estimated Wait:</strong> <span id="dashWait">-</span></p>
+            <p><strong>Status:</strong> <span id="dashStatus">-</span></p>
+            <button class="primary-btn" onclick="window.location.href='queue-status.html'">
+                View Queue Status
+            </button>
         </div>
+
         <div class="card">
             <h3>Available Services</h3>
-            <ul>
-                <li onclick="toggleService(this)" data-name="Academic Advising">Academic Advising</li>
-                <li onclick="toggleService(this)" data-name="IT Help Desk">IT Help Desk</li>
-                <li onclick="toggleService(this)" data-name="Student Services">Student Services</li>
+            <ul id="servicesList">
+                <li>Loading services...</li>
             </ul>
             <button class="primary-btn" onclick="joinSelectedQueue()">Join a Queue</button>
         </div>
@@ -57,6 +60,179 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="js/notifications.js"></script>
-<script src="js/dashboard.js"></script>
+
+<script>
+    let selectedService = null;
+    let availableServices = [];
+
+    function getStoredUser() {
+        const raw =
+            localStorage.getItem('queuesmartUser') ||
+            localStorage.getItem('user');
+
+        if (!raw) return null;
+
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+
+    function getUserId(user) {
+        if (!user) return null;
+        return user.userId || user.id || null;
+    }
+
+    function setDashboardQueue(queue) {
+        document.getElementById('dashServiceName').innerText = queue.serviceName || 'Unknown Service';
+        document.getElementById('dashPosition').innerText = `#${queue.position}`;
+        document.getElementById('dashWait').innerText = `${queue.estimatedWaitMinutes} minutes`;
+        document.getElementById('dashStatus').innerText = queue.status;
+    }
+
+    function setNoDashboardQueue() {
+        document.getElementById('dashServiceName').innerText = 'No active queue';
+        document.getElementById('dashPosition').innerText = '-';
+        document.getElementById('dashWait').innerText = '-';
+        document.getElementById('dashStatus').innerText = '-';
+    }
+
+    async function loadDashboardQueueSummary() {
+        const user = getStoredUser();
+        const userId = getUserId(user);
+
+        if (!userId) {
+            setNoDashboardQueue();
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:3000/api/queue/current/${userId}`);
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                setNoDashboardQueue();
+                return;
+            }
+
+            setDashboardQueue(data.queue);
+        } catch (err) {
+            console.error('Failed to load queue summary:', err);
+            setNoDashboardQueue();
+        }
+    }
+
+    function renderServices(services) {
+        const list = document.getElementById('servicesList');
+        list.innerHTML = '';
+
+        if (!services.length) {
+            list.innerHTML = '<li>No available services</li>';
+            return;
+        }
+
+        services.forEach(service => {
+            const li = document.createElement('li');
+            li.innerText = service.serviceName;
+            li.dataset.serviceId = service.id;
+            li.dataset.name = service.serviceName;
+            li.onclick = function () {
+                toggleService(li);
+            };
+            list.appendChild(li);
+        });
+    }
+
+    async function loadServices() {
+        try {
+            const response = await fetch('http://localhost:3000/api/services');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load services');
+            }
+
+            // If backend returns all services, keep only active ones for user dashboard
+            availableServices = data.filter(service => Number(service.isActive) === 1 || service.isActive === true);
+
+            renderServices(availableServices);
+        } catch (err) {
+            console.error('Failed to load services:', err);
+            document.getElementById('servicesList').innerHTML = '<li>Failed to load services</li>';
+        }
+    }
+
+    function toggleService(element) {
+        const allItems = document.querySelectorAll('#servicesList li');
+        allItems.forEach(item => item.classList.remove('selected'));
+
+        if (selectedService && selectedService.element === element) {
+            selectedService = null;
+            return;
+        }
+
+        element.classList.add('selected');
+        selectedService = {
+            element,
+            serviceId: Number(element.dataset.serviceId),
+            serviceName: element.dataset.name
+        };
+    }
+
+    async function joinSelectedQueue() {
+        const user = getStoredUser();
+        const userId = getUserId(user);
+
+        if (!userId) {
+            alert('You must be logged in.');
+            return;
+        }
+
+        if (!selectedService) {
+            alert('Please select a service first.');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:3000/api/queue/join', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    serviceId: selectedService.serviceId
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                alert(data.error || 'Failed to join queue.');
+                return;
+            }
+
+            alert(`Joined ${selectedService.serviceName} successfully.`);
+            await loadDashboardQueueSummary();
+        } catch (err) {
+            console.error('Failed to join queue:', err);
+            alert('Server error while joining queue.');
+        }
+    }
+
+    function logout() {
+        if (confirm('Are you sure you want to logout?')) {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('queuesmartUser');
+            window.location.href = 'index.html';
+        }
+    }
+
+    loadDashboardQueueSummary();
+    loadServices();
+    setInterval(loadDashboardQueueSummary, 15000);
+</script>
 </body>
 </html>

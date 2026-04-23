@@ -205,3 +205,5 @@ backend/node_modules/brace-expansion/index.js
 backend/.env
 backend/coverage/lcov-report/controllers/notification-controller.js.html
 backend/coverage/lcov-report/routes/notifications.js.html
+package-lock.json
+backend/coverage/lcov-report/routes/notifications.js.html

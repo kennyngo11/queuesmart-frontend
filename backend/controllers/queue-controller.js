@@ -81,14 +81,16 @@ const joinQueue = async (req, res) => {
     const [duplicateRows] = await pool.query(
       `SELECT queueEntryId
        FROM QueueEntry
-       WHERE queueId = ? AND userId = ? AND status = 'waiting'`,
-      [queueId, userId]
+       WHERE userId = ? AND status = 'waiting'
+       LIMIT 1`,
+       [userId]
     );
 
+    
     if (duplicateRows.length > 0) {
       return res.status(409).json({
         success: false,
-        error: 'User is already in this queue'
+        error: 'User is already in an active Queue'
       });
     }
 
@@ -167,6 +169,7 @@ const leaveQueue = async (req, res) => {
        WHERE qe.userId = ?
          AND s.serviceId = ?
          AND qe.status = 'waiting'
+        ORDER BY qe.joinedAt ASC
        LIMIT 1`,
       [userId, serviceId]
     );

@@ -8,7 +8,8 @@ function mapServiceRow(row) {
     serviceName: row.name,
     description: row.description,
     duration: row.expectedDuration,
-    priority: row.priorityLevel
+    priority: row.priorityLevel,
+    isActive: row.isActive
   };
 }
 
@@ -16,9 +17,8 @@ function mapServiceRow(row) {
 exports.listServices = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT serviceId, name, description, expectedDuration, priorityLevel
+      `SELECT serviceId, name, description, expectedDuration, priorityLevel, isActive
        FROM Service
-       WHERE isActive = 1
        ORDER BY serviceId ASC`
     );
     res.json(rows.map(mapServiceRow));
@@ -111,3 +111,30 @@ exports.updateService = async (req, res) => {
     res.status(500).json({ error: 'Failed to update service' });
   }
 };
+
+const updateServiceStatus = async (req, res) => {
+  try {
+    const serviceId = Number(req.params.serviceId);
+    const { isActive } = req.body;
+
+    await pool.query(
+      `UPDATE Service
+       SET isActive = ?
+       WHERE serviceId = ?`,
+      [isActive ? 1 : 0, serviceId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service status updated'
+    });
+  } catch (err) {
+    console.error('updateServiceStatus error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error while updating service status'
+    });
+  }
+};
+
+exports.updateServiceStatus = updateServiceStatus;

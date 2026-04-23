@@ -9,5 +9,7 @@ router.get('/', serviceController.listServices);
 router.post('/', serviceController.createService);
 // Update a service
 router.put('/:id', serviceController.updateService);
+// Enable or disable a service
+router.patch('/:serviceId/status', serviceController.updateServiceStatus);
 
 module.exports = router;

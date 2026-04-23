@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -35,26 +35,151 @@
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
     </header>
+
     <main class="dashboard">
         <div class="card-grid">
             <section class="card">
                 <h2>Queue Status</h2>
 
-                <p><strong>Current Position:</strong> <span id="position">#4</span></p>
-                <p><strong>Estimated Wait:</strong> <span id="wait">12 minutes</span></p>
-                <p><strong>Status:</strong> <span id="status" class="status waiting">Waiting</span></p>
+                <p><strong>Service:</strong> <span id="serviceName">Loading...</span></p>
+                <p><strong>People Ahead:</strong> <span id="peopleAhead">-</span></p>
+                <p><strong>Current Position:</strong> <span id="position">-</span></p>
+                <p><strong>Estimated Wait:</strong> <span id="wait">-</span></p>
+                <p><strong>Status:</strong> <span id="status" class="status">-</span></p>
 
                 <div class="progress" aria-label="Queue progress">
-                    <div id="progressFill" class="progress-fill" style="width: 30%;"></div>
+                    <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
                 </div>
 
                 <button class="primary-btn" onclick="leaveQueue()">Leave Queue</button>
             </section>
         </div>
     </main>
+
+    <script src="js/notifications.js"></script>
+
     <script>
-        function leaveQueue() {
-            alert("This would take you out of the queue");
+        let currentQueue = null;
+
+        function getStoredUser() {
+            const raw =
+                localStorage.getItem('queuesmartUser') ||
+                localStorage.getItem('user');
+
+            if (!raw) return null;
+
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return null;
+            }
+        }
+
+        function getUserId(user) {
+            if (!user) return null;
+            return user.userId || user.id || null;
+        }
+
+        function setQueueUI(queue) {
+            document.getElementById('serviceName').innerText = queue.serviceName || 'Unknown Service';
+            document.getElementById('peopleAhead').innerText = queue.peopleAhead ?? 0;
+            document.getElementById('position').innerText = `#${queue.position}`;
+            document.getElementById('wait').innerText = `${queue.estimatedWaitMinutes} minutes`;
+            document.getElementById('status').innerText = queue.status;
+
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${queue.status}`;
+
+            let fillPercent = 100;
+            if (queue.position >= 1) {
+                fillPercent = Math.max(10, 100 - ((queue.position - 1) * 20));
+            }
+            document.getElementById('progressFill').style.width = `${fillPercent}%`;
+        }
+
+        function setNoQueueUI() {
+            document.getElementById('serviceName').innerText = 'No active queue';
+            document.getElementById('peopleAhead').innerText = '-';
+            document.getElementById('position').innerText = '-';
+            document.getElementById('wait').innerText = '-';
+            document.getElementById('status').innerText = 'Not in queue';
+            document.getElementById('status').className = 'status';
+            document.getElementById('progressFill').style.width = '0%';
+        }
+
+        async function loadCurrentQueue() {
+            const user = getStoredUser();
+            const userId = getUserId(user);
+
+            if (!userId) {
+                setNoQueueUI();
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:3000/api/queue/current/${userId}`);
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    currentQueue = null;
+                    setNoQueueUI();
+                    return;
+                }
+
+                currentQueue = data.queue;
+                setQueueUI(currentQueue);
+            } catch (err) {
+                console.error('Failed to load current queue:', err);
+                currentQueue = null;
+                setNoQueueUI();
+            }
+        }
+
+        async function leaveQueue() {
+            if (!currentQueue) {
+                alert('You are not currently in a queue.');
+                return;
+            }
+
+            const user = getStoredUser();
+            const userId = getUserId(user);
+
+            if (!userId || !currentQueue.serviceId) {
+                alert('Missing queue information.');
+                return;
+            }
+
+            if (!confirm('Leave your current queue?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/queue/leave', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId,
+                        serviceId: currentQueue.serviceId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(data.error || 'Failed to leave queue.');
+                    return;
+                }
+
+                alert('You left the queue.');
+                currentQueue = null;
+                setNoQueueUI();
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                console.error('Failed to leave queue:', err);
+                alert('Server error while leaving queue.');
+            }
         }
 
         function logout() {
@@ -66,8 +191,8 @@
             }
         }
 
-        setTimeout(() => {
-            document.getElementById("status").innerText = "Almost Ready";
-        }, 5000);
-
+        loadCurrentQueue();
+        setInterval(loadCurrentQueue, 15000);
     </script>
+</body>
+</html>
