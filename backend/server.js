@@ -10,6 +10,7 @@ const notificationRoutes = require('./routes/notifications');
 
 const queueRoutes = require('./routes/queue');
 const historyRoutes = require('./routes/history');
+const reportRoutes = require('./routes/reports');
 const userRoutes = require('./routes/users');
 
 
@@ -27,6 +28,7 @@ app.use('/api/notifications', notificationRoutes);
 
 app.use('/api/queue', queueRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 
 // TODO: Other team members will add their routes here

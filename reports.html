@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QueueSmart - Reports</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #333; }
+    .stats { display: flex; gap: 20px; margin: 20px 0; }
+    .stat-card { background: #f0f0f0; padding: 15px 25px; border-radius: 8px; text-align: center; }
+    .stat-card h3 { margin: 0; font-size: 2em; color: #4a90e2; }
+    .stat-card p { margin: 5px 0 0; color: #666; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background: #4a90e2; color: white; padding: 10px; text-align: left; }
+    td { padding: 8px 10px; border-bottom: 1px solid #ddd; }
+    tr:hover { background: #f9f9f9; }
+    .btn { padding: 10px 20px; margin-right: 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+    .btn-primary { background: #4a90e2; color: white; }
+    .btn-success { background: #27ae60; color: white; }
+    .status-served { color: green; font-weight: bold; }
+    .status-waiting { color: orange; font-weight: bold; }
+    .status-canceled { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>📊 QueueSmart Admin Reports</h1>
+  <p>Administrator access only. View queue activity and export data.</p>
+
+  <button class="btn btn-primary" onclick="loadReport()">Generate Report</button>
+  <button class="btn btn-success" onclick="exportCSV()">⬇ Export CSV</button>
+
+  <div class="stats" id="stats" style="display:none">
+    <div class="stat-card"><h3 id="stat-served">-</h3><p>Total Served</p></div>
+    <div class="stat-card"><h3 id="stat-waiting">-</h3><p>Currently Waiting</p></div>
+    <div class="stat-card"><h3 id="stat-cancelled">-</h3><p>Cancelled</p></div>
+    <div class="stat-card"><h3 id="stat-avg">-</h3><p>Avg Wait (min)</p></div>
+  </div>
+
+  <table id="report-table" style="display:none">
+    <thead>
+      <tr>
+        <th>Full Name</th>
+        <th>Email</th>
+        <th>Service</th>
+        <th>Position</th>
+        <th>Status</th>
+        <th>Joined At</th>
+        <th>Served At</th>
+        <th>Wait (min)</th>
+      </tr>
+    </thead>
+    <tbody id="report-body"></tbody>
+  </table>
+
+  <script>
+    const API = 'http://localhost:3000/api';
+
+    async function loadReport() {
+      try {
+        const res = await fetch(`${API}/reports/data`);
+        const data = await res.json();
+
+        document.getElementById('stat-served').textContent = data.stats.totalServed;
+        document.getElementById('stat-waiting').textContent = data.stats.totalWaiting;
+        document.getElementById('stat-cancelled').textContent = data.stats.totalCancelled;
+        document.getElementById('stat-avg').textContent = data.stats.avgWaitMinutes;
+        document.getElementById('stats').style.display = 'flex';
+
+        const tbody = document.getElementById('report-body');
+        tbody.innerHTML = '';
+        data.records.forEach(r => {
+          const statusClass = `status-${r.status}`;
+          tbody.innerHTML += `<tr>
+            <td>${r.fullName || 'N/A'}</td>
+            <td>${r.email}</td>
+            <td>${r.serviceName}</td>
+            <td>${r.positionInQueue}</td>
+            <td class="${statusClass}">${r.status}</td>
+            <td>${r.joinedAt ? new Date(r.joinedAt).toLocaleString() : '-'}</td>
+            <td>${r.servedAt ? new Date(r.servedAt).toLocaleString() : '-'}</td>
+            <td>${r.waitMinutes ?? '-'}</td>
+          </tr>`;
+        });
+        document.getElementById('report-table').style.display = 'table';
+      } catch (err) {
+        alert('Error loading report. Make sure the backend is running.');
+      }
+    }
+
+    function exportCSV() {
+      window.location.href = `${API}/reports/csv`;
+    }
+  </script>
+</body>
+</html>
