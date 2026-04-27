@@ -40,7 +40,7 @@ router.get('/data', async (req, res) => {
     const totalServed = rows.filter(r => r.status === 'served').length;
     const totalWaiting = rows.filter(r => r.status === 'waiting').length;
     const totalCancelled = rows.filter(r => r.status === 'canceled').length;
-    const waitTimes = rows.filter(r => r.waitMinutes !== null).map(r => r.waitMinutes);
+    const waitTimes = rows.filter(r => r.waitMinutes !== null && r.waitMinutes !== undefined).map(r => Number(r.waitMinutes));
     const avgWait = waitTimes.length
       ? (waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length).toFixed(1)
       : 'N/A';
