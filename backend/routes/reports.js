@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const pool = require('../db');
 const { createObjectCsvWriter } = require('csv-writer');
 const path = require('path');
 
-// Helper query
-function getReportData(callback) {
+async function getReportData() {
   const sql = `
     SELECT 
       uc.email,
@@ -29,13 +28,14 @@ function getReportData(callback) {
     JOIN Service s ON q.serviceId = s.serviceId
     ORDER BY qe.joinedAt DESC
   `;
-  db.query(sql, callback);
+  const [rows] = await pool.query(sql);
+  return rows;
 }
 
 // GET /api/reports/data
-router.get('/data', (req, res) => {
-  getReportData((err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+router.get('/data', async (req, res) => {
+  try {
+    const rows = await getReportData();
 
     const totalServed = rows.filter(r => r.status === 'served').length;
     const totalWaiting = rows.filter(r => r.status === 'waiting').length;
@@ -54,13 +54,15 @@ router.get('/data', (req, res) => {
         avgWaitMinutes: avgWait
       }
     });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/reports/csv
-router.get('/csv', (req, res) => {
-  getReportData(async (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+router.get('/csv', async (req, res) => {
+  try {
+    const rows = await getReportData();
 
     const filePath = path.join(__dirname, '../report_export.csv');
     const csvWriter = createObjectCsvWriter({
@@ -80,7 +82,9 @@ router.get('/csv', (req, res) => {
 
     await csvWriter.writeRecords(rows);
     res.download(filePath, 'queuesmart_report.csv');
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
