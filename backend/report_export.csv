@@ -1,0 +1,4 @@
+Full Name,Email,Service,Position,Status,Joined At,Served At,Cancelled At,Wait Time (min)
+John Doe,john.doe@email.com,General Support,1,served,2026-04-25T14:00:00.000Z,2026-04-25T14:15:00.000Z,,15.0
+Jane Smith,jane.smith@email.com,General Support,2,waiting,2026-04-25T14:05:00.000Z,,,
+Bob Jones,bob.jones@email.com,Technical Help,3,canceled,2026-04-25T14:10:00.000Z,,2026-04-25T14:20:00.000Z,
