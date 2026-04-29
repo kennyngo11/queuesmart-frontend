@@ -3,6 +3,25 @@ const pool = require('../db');
 const { validateJoinQueue, validateLeaveQueue } = require('../utils/queue-validators');
 const { estimateWaitTime } = require('../utils/wait-time');
 
+const reorderQueuePositions = async (queueId) => {
+  const [remainingRows] = await pool.query(
+    `SELECT queueEntryId
+     FROM QueueEntry
+     WHERE queueId = ? AND status = 'waiting'
+     ORDER BY positionInQueue ASC`,
+    [queueId]
+  );
+
+  for (let i = 0; i < remainingRows.length; i++) {
+    await pool.query(
+      `UPDATE QueueEntry
+       SET positionInQueue = ?
+       WHERE queueEntryId = ?`,
+      [i + 1, remainingRows[i].queueEntryId]
+    );
+  }
+};
+
 
 const joinQueue = async (req, res) => {
   try {
@@ -342,13 +361,23 @@ const serveNext = async (req, res) => {
 
     const nextEntry = rows[0];
 
-await pool.query(
-  `UPDATE QueueEntry
-   SET status = 'served',
-       servedAt = NOW()
-   WHERE queueEntryId = ?`,
-  [nextEntry.queueEntryId]
-);
+    await pool.query(
+      `UPDATE QueueEntry
+       SET status = 'served',
+           servedAt = NOW()
+       WHERE queueEntryId = ?`,
+      [nextEntry.queueEntryId]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO Notifications (userId, message, type, status, createdAt)
+         VALUES (?, ?, 'queue_served', 'sent', NOW())`,
+        [nextEntry.userId, `You have been served for ${nextEntry.serviceName}`]
+      );
+    } catch (notifErr) {
+      console.warn('Notification insert skipped:', notifErr.message);
+    }
 
     const [remainingRows] = await pool.query(
       `SELECT queueEntryId
@@ -387,9 +416,231 @@ await pool.query(
   }
 };
 
+const getQueueByService = async (req, res) => {
+  try {
+    const serviceId = Number(req.params.serviceId);
+
+    if (Number.isNaN(serviceId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid serviceId is required'
+      });
+    }
+
+    const [queueRows] = await pool.query(
+      `SELECT queueId
+       FROM Queues
+       WHERE serviceId = ? AND status = 'open'
+       ORDER BY queueId DESC
+       LIMIT 1`,
+      [serviceId]
+    );
+
+    if (queueRows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        queueId: null,
+        entries: []
+      });
+    }
+
+    const queueId = queueRows[0].queueId;
+    const [rows] = await pool.query(
+      `SELECT
+          qe.queueEntryId,
+          qe.userId,
+          qe.positionInQueue,
+          qe.status,
+          uc.email,
+          up.fullName
+       FROM QueueEntry qe
+       INNER JOIN UserCredentials uc ON uc.userId = qe.userId
+       LEFT JOIN UserProfile up ON up.userId = uc.userId
+       WHERE qe.queueId = ?
+         AND qe.status = 'waiting'
+       ORDER BY qe.positionInQueue ASC`,
+      [queueId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      queueId,
+      entries: rows.map(row => ({
+        queueEntryId: row.queueEntryId,
+        userId: row.userId,
+        position: row.positionInQueue,
+        status: row.status,
+        email: row.email,
+        name: row.fullName
+      }))
+    });
+  } catch (err) {
+    console.error('getQueueByService error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error while fetching queue'
+    });
+  }
+};
+
+const moveQueueEntry = async (req, res) => {
+  try {
+    const queueEntryId = Number(req.params.queueEntryId);
+    const { direction } = req.body;
+
+    if (Number.isNaN(queueEntryId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid queueEntryId is required'
+      });
+    }
+
+    if (direction !== 'up' && direction !== 'down') {
+      return res.status(400).json({
+        success: false,
+        error: 'direction must be "up" or "down"'
+      });
+    }
+
+    const [entryRows] = await pool.query(
+      `SELECT queueEntryId, queueId, positionInQueue
+       FROM QueueEntry
+       WHERE queueEntryId = ? AND status = 'waiting'
+       LIMIT 1`,
+      [queueEntryId]
+    );
+
+    if (entryRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Queue entry not found'
+      });
+    }
+
+    const entry = entryRows[0];
+    const targetPosition = direction === 'up'
+      ? entry.positionInQueue - 1
+      : entry.positionInQueue + 1;
+
+    const [swapRows] = await pool.query(
+      `SELECT queueEntryId, positionInQueue
+       FROM QueueEntry
+       WHERE queueId = ?
+         AND status = 'waiting'
+         AND positionInQueue = ?
+       LIMIT 1`,
+      [entry.queueId, targetPosition]
+    );
+
+    if (swapRows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot move further in that direction'
+      });
+    }
+
+    await pool.query(
+      `UPDATE QueueEntry
+       SET positionInQueue = ?
+       WHERE queueEntryId = ?`,
+      [targetPosition, entry.queueEntryId]
+    );
+
+    await pool.query(
+      `UPDATE QueueEntry
+       SET positionInQueue = ?
+       WHERE queueEntryId = ?`,
+      [entry.positionInQueue, swapRows[0].queueEntryId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Queue position updated'
+    });
+  } catch (err) {
+    console.error('moveQueueEntry error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error while updating queue position'
+    });
+  }
+};
+
+const removeQueueEntry = async (req, res) => {
+  try {
+    const queueEntryId = Number(req.params.queueEntryId);
+
+    if (Number.isNaN(queueEntryId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid queueEntryId is required'
+      });
+    }
+
+    const [entryRows] = await pool.query(
+      `SELECT
+          qe.queueEntryId,
+          qe.queueId,
+          qe.userId,
+          qe.positionInQueue,
+          s.serviceId,
+          s.name AS serviceName
+       FROM QueueEntry qe
+       INNER JOIN Queues q ON q.queueId = qe.queueId
+       INNER JOIN Service s ON s.serviceId = q.serviceId
+       WHERE qe.queueEntryId = ? AND qe.status = 'waiting'
+       LIMIT 1`,
+      [queueEntryId]
+    );
+
+    if (entryRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Queue entry not found'
+      });
+    }
+
+    const entry = entryRows[0];
+
+    await pool.query(
+      `UPDATE QueueEntry
+       SET status = 'canceled',
+           cancelledAt = NOW()
+       WHERE queueEntryId = ?`,
+      [entry.queueEntryId]
+    );
+
+    await reorderQueuePositions(entry.queueId);
+
+    try {
+      await pool.query(
+        `INSERT INTO Notifications (userId, message, type, status, createdAt)
+         VALUES (?, ?, 'queue_left', 'sent', NOW())`,
+        [entry.userId, `You were removed from the queue for ${entry.serviceName}`]
+      );
+    } catch (notifErr) {
+      console.warn('Notification insert skipped:', notifErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'User removed from queue'
+    });
+  } catch (err) {
+    console.error('removeQueueEntry error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error while removing queue entry'
+    });
+  }
+};
+
 module.exports = {
   joinQueue,
   leaveQueue,
   getCurrentQueue,
-  serveNext
+  serveNext,
+  getQueueByService,
+  moveQueueEntry,
+  removeQueueEntry
 };

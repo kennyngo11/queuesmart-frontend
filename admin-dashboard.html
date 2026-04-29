@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-<main class="dashboard">
-    <header class="top-bar">
+<header class="top-bar">
         <div class="top-left">
             <span class="admin-panel-title">Admin Panel</span>
         </div>
@@ -35,6 +34,7 @@
             <button class="logout-btn" onclick="logout()" style="margin-top:0; vertical-align:middle;">Logout</button>
         </div>
     </header>
+<main class="dashboard">
     <div class="card fade-in">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 24px;">
             <button class="primary-btn" style="width:auto; padding:10px 16px;" onclick="window.location.href='service-management.html'">Service Management</button>
@@ -50,36 +50,104 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="servicesOverviewBody">
                 <tr>
-                    <td>Academic Advising</td>
-                    <td>5</td>
-                    <td><span class="status waiting">Open</span></td>
-                    <td class="service-actions">
-                        <button class="action-btn close">Close Queue</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td>IT Help Desk</td>
-                    <td>2</td>
-                    <td><span class="status waiting">Open</span></td>
-                    <td class="service-actions">
-                        <button class="action-btn close">Close Queue</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Student Services</td>
-                    <td>0</td>
-                    <td><span class="status waiting">Closed</span></td>
-                    <td class="service-actions">
-                        <button class="action-btn open">Open Queue</button>
-                    </td>
+                    <td colspan="4" style="text-align:center; color:#6b7280; padding:24px;">Loading services...</td>
                 </tr>
             </tbody>
         </table>
     </div>
 </main>
 <script>
+const API_BASE_URL = 'http://localhost:3000/api';
+
+function renderServicesOverview(services) {
+    const body = document.getElementById('servicesOverviewBody');
+    if (!body) return;
+
+    if (!services.length) {
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#6b7280; padding:24px;">No services found.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = services.map(service => {
+        const isActive = Number(service.isActive) === 1 || service.isActive === true;
+        const statusText = isActive ? 'Open' : 'Closed';
+        const statusClass = isActive ? 'waiting' : '';
+        const actionText = isActive ? 'Close Queue' : 'Open Queue';
+        const actionClass = isActive ? 'close' : 'open';
+        const nextState = isActive ? 0 : 1;
+
+        return `
+            <tr>
+                <td>${service.serviceName}</td>
+                <td>${service.queueLength ?? 0}</td>
+                <td><span class="status ${statusClass}">${statusText}</span></td>
+                <td class="service-actions">
+                    <button class="action-btn ${actionClass}" data-service-id="${service.id}" data-next-state="${nextState}">${actionText}</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadServicesOverview() {
+    const body = document.getElementById('servicesOverviewBody');
+    if (body) {
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#6b7280; padding:24px;">Loading services...</td></tr>';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/services`);
+        const data = await response.json();
+
+        if (!response.ok || !Array.isArray(data)) {
+            throw new Error('Failed to load services');
+        }
+
+        renderServicesOverview(data);
+    } catch (err) {
+        console.error('Failed to load services overview:', err);
+        if (body) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">Failed to load services.</td></tr>';
+        }
+    }
+}
+
+async function toggleServiceStatus(serviceId, nextState) {
+    const response = await fetch(`${API_BASE_URL}/services/${serviceId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: Boolean(nextState) })
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update service status');
+    }
+}
+
+document.getElementById('servicesOverviewBody').addEventListener('click', async (event) => {
+    const button = event.target.closest('button[data-service-id]');
+    if (!button) return;
+
+    const serviceId = Number(button.dataset.serviceId);
+    const nextState = Number(button.dataset.nextState);
+
+    if (Number.isNaN(serviceId) || Number.isNaN(nextState)) return;
+
+    button.disabled = true;
+
+    try {
+        await toggleServiceStatus(serviceId, nextState);
+        await loadServicesOverview();
+    } catch (err) {
+        console.error('Failed to update service status:', err);
+        alert(err.message || 'Failed to update service status.');
+        button.disabled = false;
+    }
+});
+
 function getStoredUser() {
     const raw =
         localStorage.getItem('queuesmartUser') ||
@@ -123,6 +191,7 @@ function logout() {
     }
 
 setupAdminToggle();
+loadServicesOverview();
 </script>
 <div class="toast-container" id="toastContainer"></div>
 <script src="js/notifications.js"></script>

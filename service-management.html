@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-<main class="dashboard">
-    <header class="top-bar">
+<header class="top-bar">
         <div class="top-left">
             <span class="admin-panel-title">Admin Panel</span>
         </div>
@@ -34,6 +33,7 @@
             <button class="logout-btn" onclick="logout()" style="margin-top:0; vertical-align:middle;">Logout</button>
         </div>
     </header>
+<main class="dashboard">
     <div class="card fade-in">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 24px;">
             <button class="primary-btn" style="width:auto; padding:10px 16px;" onclick="window.location.href='admin-dashboard.html'">Back</button>
@@ -66,7 +66,7 @@
                 </select>
                 <div class="error-message" id="priorityError"></div>
             </div>
-            <button type="submit" class="primary-btn">Create / Edit Service</button>
+            <button type="submit" class="primary-btn" id="serviceSubmitBtn">Create / Edit Service</button>
         </form>
         <div id="serviceList" style="margin-top:32px;"></div>
     </div>

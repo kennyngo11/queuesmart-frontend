@@ -80,6 +80,12 @@ body {
     margin-top: 12px;
 }
 
+.service-table .status {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0;
+}
+
 .status.waiting {
     background: #fef3c7;
     color: #92400e;
@@ -200,6 +206,12 @@ body {
     margin: 0;
 }
 
+.top-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
 .top-right {
     display: flex;
     gap: 12px;
@@ -263,6 +275,11 @@ body {
         flex-direction: column;
         gap: 15px;
         text-align: center;
+    }
+
+    .top-center {
+        position: static;
+        transform: none;
     }
 
     .top-left,

@@ -42,7 +42,7 @@ function startEditService(data) {
     document.getElementById('description').value = decodeURIComponent(data.description);
     document.getElementById('duration').value = data.duration;
     document.getElementById('priority').value = data.priority;
-    document.querySelector('.primary-btn').textContent = 'Update Service';
+    document.getElementById('serviceSubmitBtn').textContent = 'Update Service';
 }
 
 // Fetch and display all services
@@ -58,14 +58,17 @@ async function fetchServices() {
             listDiv.innerHTML = '<em>No services found.</em>';
             return;
         }
-        let html = '<table class="service-table"><thead><tr><th>Name</th><th>Description</th><th>Duration</th><th>Priority</th><th></th></tr></thead><tbody>';
+        let html = '<table class="service-table"><thead><tr><th>Name</th><th>Description</th><th>Duration</th><th>Priority</th><th>Actions</th></tr></thead><tbody>';
         for (const s of services) {
             html += `<tr>
                 <td>${s.serviceName}</td>
                 <td>${s.description}</td>
                 <td>${s.duration} min</td>
                 <td>${s.priority}</td>
-                <td><button class="edit-btn" data-id="${s.id}" data-name="${encodeURIComponent(s.serviceName)}" data-description="${encodeURIComponent(s.description)}" data-duration="${s.duration}" data-priority="${s.priority}">Edit</button></td>
+                <td>
+                    <button class="edit-btn" style="margin-right:8px;" data-id="${s.id}" data-name="${encodeURIComponent(s.serviceName)}" data-description="${encodeURIComponent(s.description)}" data-duration="${s.duration}" data-priority="${s.priority}">Edit</button>
+                    <button class="remove-btn" data-id="${s.id}">Remove</button>
+                </td>
             </tr>`;
         }
         html += '</tbody></table>';
@@ -74,6 +77,34 @@ async function fetchServices() {
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 startEditService(this.dataset);
+            });
+        });
+        document.querySelectorAll('.remove-btn').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const serviceId = this.dataset.id;
+                if (!serviceId) return;
+                if (!confirm('Remove this service?')) return;
+
+                try {
+                    const res = await fetch(`http://localhost:3000/api/services/${serviceId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        showBackendError(data.error || 'Failed to remove service');
+                        return;
+                    }
+
+                    if (Number(editingServiceId) === Number(serviceId)) {
+                        document.getElementById('serviceForm').reset();
+                        editingServiceId = null;
+                        document.getElementById('serviceSubmitBtn').textContent = 'Create / Edit Service';
+                    }
+
+                    fetchServices();
+                } catch (err) {
+                    alert('Network or server error.');
+                }
             });
         });
     } catch (err) {
@@ -125,7 +156,7 @@ document.getElementById('serviceForm').addEventListener('submit', async function
         // Success
         this.reset();
         editingServiceId = null;
-        document.querySelector('.primary-btn').textContent = 'Create / Edit Service';
+        document.getElementById('serviceSubmitBtn').textContent = 'Create / Edit Service';
         fetchServices();
     } catch (err) {
         alert('Network or server error.');
@@ -134,5 +165,5 @@ document.getElementById('serviceForm').addEventListener('submit', async function
 
 document.getElementById('serviceForm').addEventListener('reset', function() {
     editingServiceId = null;
-    document.querySelector('.primary-btn').textContent = 'Create / Edit Service';
+    document.getElementById('serviceSubmitBtn').textContent = 'Create / Edit Service';
 });

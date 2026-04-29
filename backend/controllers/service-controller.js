@@ -9,7 +9,8 @@ function mapServiceRow(row) {
     description: row.description,
     duration: row.expectedDuration,
     priority: row.priorityLevel,
-    isActive: row.isActive
+    isActive: row.isActive,
+    queueLength: row.queueLength
   };
 }
 
@@ -17,13 +18,28 @@ function mapServiceRow(row) {
 exports.listServices = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT serviceId, name, description, expectedDuration, priorityLevel, isActive
-       FROM Service
-       ORDER BY serviceId ASC`
+      `SELECT
+          s.serviceId,
+          s.name,
+          s.description,
+          s.expectedDuration,
+          s.priorityLevel,
+          s.isActive,
+          COUNT(qe.queueEntryId) AS queueLength
+       FROM Service s
+       LEFT JOIN Queues q
+         ON q.serviceId = s.serviceId
+        AND q.status = 'open'
+       LEFT JOIN QueueEntry qe
+         ON qe.queueId = q.queueId
+        AND qe.status = 'waiting'
+       GROUP BY s.serviceId, s.name, s.description, s.expectedDuration, s.priorityLevel, s.isActive
+       ORDER BY s.serviceId ASC`
     );
     res.json(rows.map(mapServiceRow));
   } catch (error) {
-    console.error('Error listing services:', error.message);
+    console.error('Error listing services:', error.message || error);
+    console.error('Error listing services details:', error);
     res.status(500).json({ error: 'Failed to retrieve services' });
   }
 };
@@ -138,3 +154,28 @@ const updateServiceStatus = async (req, res) => {
 };
 
 exports.updateServiceStatus = updateServiceStatus;
+
+// Delete a service
+exports.deleteService = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid service id' });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `DELETE FROM Service
+       WHERE serviceId = ?`,
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+
+    res.status(200).json({ success: true, message: 'Service deleted' });
+  } catch (dbError) {
+    console.error('Error deleting service:', dbError.message || dbError);
+    res.status(500).json({ error: 'Failed to delete service' });
+  }
+};

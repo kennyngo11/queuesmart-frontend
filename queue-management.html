@@ -7,8 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-<main class="dashboard">
-    <header class="top-bar">
+<header class="top-bar">
         <div class="top-left">
             <span class="admin-panel-title">Admin Panel</span>
         </div>
@@ -34,6 +33,7 @@
             <button class="logout-btn" onclick="logout()" style="margin-top:0; vertical-align:middle;">Logout</button>
         </div>
     </header>
+<main class="dashboard">
     <div class="card fade-in">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 24px;">
             <button class="primary-btn" style="width:auto; padding:10px 16px;" onclick="window.location.href='admin-dashboard.html'">Back</button>
@@ -92,42 +92,138 @@
     </div>
 </main>
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+const API_BASE_URL = 'http://localhost:3000/api';
+const serviceSelect = document.getElementById('serviceSelect');
+const queueBody = document.getElementById('queueBody');
+
 function logout() {
-        if (confirm("Are you sure you want to logout?")) {
-            localStorage.removeItem("user");
-            localStorage.removeItem("token");
-            localStorage.removeItem("queuesmartUser");
-            window.location.href = "index.html";
-        }
+    if (confirm("Are you sure you want to logout?")) {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        localStorage.removeItem("queuesmartUser");
+        window.location.href = "index.html";
+    }
+}
+
+function renderQueue(entries) {
+    if (!entries.length) {
+        queueBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#6b7280; padding:24px;">No users waiting in this queue.</td></tr>';
+        return;
     }
 
-    // UI simulation for Serve Next
-    document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('queueBody').addEventListener('click', function(e) {
-            if (e.target.classList.contains('serve')) {
-                const row = e.target.closest('tr');
-                const userEmail = row.querySelector('td:nth-child(2)').textContent;
-                row.remove();
-                alert('Served next user: ' + userEmail);
-                // Optionally, renumber positions
-                Array.from(document.querySelectorAll('#queueBody tr')).forEach((tr, idx) => {
-                    tr.querySelector('td').textContent = idx + 1;
-                });
-            }
-        });
+    queueBody.innerHTML = entries.map((entry, index) => {
+        const isFirst = index === 0;
+        const isLast = index === entries.length - 1;
+        return `
+            <tr>
+                <td>${entry.position}</td>
+                <td>${entry.email}</td>
+                <td>Waiting</td>
+                <td class="queue-actions">
+                    ${isFirst ? `<button class="action-btn serve" data-action="serve">Serve Next</button>` : ''}
+                    <button class="action-btn" data-action="up" data-entry-id="${entry.queueEntryId}" ${isFirst ? 'disabled' : ''}>Move Up</button>
+                    <button class="action-btn" data-action="down" data-entry-id="${entry.queueEntryId}" ${isLast ? 'disabled' : ''}>Move Down</button>
+                    <button class="action-btn remove" data-action="remove" data-entry-id="${entry.queueEntryId}">Remove</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
 
-        // Remove simulation for other actions
-        document.querySelectorAll('.action-btn.remove').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const row = this.closest('tr');
-                row.remove();
+async function loadQueueEntries(serviceId) {
+    queueBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px;">Loading queue...</td></tr>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/queue/service/${serviceId}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to load queue');
+        }
+
+        renderQueue(data.entries || []);
+    } catch (err) {
+        console.error('Failed to load queue:', err);
+        queueBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">Failed to load queue.</td></tr>';
+    }
+}
+
+async function loadServices() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/services`);
+        const services = await response.json();
+
+        if (!response.ok || !Array.isArray(services)) {
+            throw new Error('Failed to load services');
+        }
+
+        serviceSelect.innerHTML = services.map(service => (
+            `<option value="${service.id}">${service.serviceName}</option>`
+        )).join('');
+
+        if (services.length) {
+            await loadQueueEntries(services[0].id);
+        } else {
+            queueBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#6b7280; padding:24px;">No services available.</td></tr>';
+        }
+    } catch (err) {
+        console.error('Failed to load services:', err);
+        queueBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">Failed to load services.</td></tr>';
+    }
+}
+
+queueBody.addEventListener('click', async (event) => {
+    const action = event.target.dataset.action;
+    const entryId = event.target.dataset.entryId;
+
+    if (!action) return;
+    if (action !== 'serve' && !entryId) return;
+
+    try {
+        if (action === 'serve') {
+            const serviceId = serviceSelect.value;
+            if (!serviceId) return;
+            const response = await fetch(`${API_BASE_URL}/queue/serve-next/${serviceId}`, {
+                method: 'POST'
             });
-        });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to serve next user');
+            }
+        } else if (action === 'remove') {
+            if (!confirm('Remove this user from the queue?')) return;
+            const response = await fetch(`${API_BASE_URL}/queue/entry/${entryId}/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to remove user');
+            }
+        } else if (action === 'up' || action === 'down') {
+            const response = await fetch(`${API_BASE_URL}/queue/entry/${entryId}/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direction: action })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to move user');
+            }
+        }
 
-        document.getElementById('serviceSelect').addEventListener('change', function() {
-            alert('Queue data would update for: ' + this.value);
-        });
-    });
+        await loadQueueEntries(serviceSelect.value);
+    } catch (err) {
+        console.error('Queue action failed:', err);
+        alert(err.message || 'Queue action failed.');
+    }
+});
+
+serviceSelect.addEventListener('change', () => {
+    loadQueueEntries(serviceSelect.value);
+});
+
+loadServices();
 </script>
 <div class="toast-container" id="toastContainer"></div>
 <script src="js/notifications.js"></script>

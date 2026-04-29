@@ -9,6 +9,8 @@ router.get('/', serviceController.listServices);
 router.post('/', serviceController.createService);
 // Update a service
 router.put('/:id', serviceController.updateService);
+// Delete a service
+router.delete('/:id', serviceController.deleteService);
 // Enable or disable a service
 router.patch('/:serviceId/status', serviceController.updateServiceStatus);
 
