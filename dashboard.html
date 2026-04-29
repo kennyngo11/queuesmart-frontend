@@ -15,6 +15,7 @@
         <a href="dashboard.html" style="text-decoration:none;"><h1>QueueSmart</h1></a>
     </div>
     <div class="top-right">
+        <button class="icon-btn" id="adminToggleBtn" title="Admin Panel" onclick="toggleAdminPanel()" style="display:none;">👨🏻‍💻</button>
         <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
         <div class="notif-wrapper" id="notifWrapper">
             <button class="icon-btn" id="notifBtn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
@@ -82,6 +83,25 @@
     function getUserId(user) {
         if (!user) return null;
         return user.userId || user.id || null;
+    }
+
+    function isAdminUser(user) {
+        if (!user || !user.role) return false;
+        const role = String(user.role).toLowerCase();
+        return role === 'admin' || role === 'administrator';
+    }
+
+    function toggleAdminPanel() {
+        window.location.href = 'admin-dashboard.html';
+    }
+
+    function setupAdminToggle() {
+        const btn = document.getElementById('adminToggleBtn');
+        if (!btn) return;
+        const user = getStoredUser();
+        if (isAdminUser(user)) {
+            btn.style.display = 'flex';
+        }
     }
 
     function setDashboardQueue(queue) {
@@ -232,6 +252,7 @@
 
     loadDashboardQueueSummary();
     loadServices();
+    setupAdminToggle();
     setInterval(loadDashboardQueueSummary, 15000);
 </script>
 </body>
