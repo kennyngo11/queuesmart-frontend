@@ -2,18 +2,38 @@
 // Run with: npm test
 
 const request = require('supertest');
+const { validateEmail, validatePassword, validateRequired } = require('../utils/validators');
 const app = require('../server');
 const { sessions } = require('../data/mock-data');
 const pool = require('../db');
 
 describe('Authentication API Tests', () => {
 
-    // Clear test data before each test
+    // Clear test data and ensure seed users exist before each test
     beforeEach(async () => {
-    await pool.query("DELETE FROM UserProfile WHERE userId NOT IN (SELECT userId FROM UserCredentials WHERE email IN ('user@example.com', 'admin@queuesmart.com'))");
-    await pool.query("DELETE FROM UserCredentials WHERE email NOT IN ('user@example.com', 'admin@queuesmart.com')");
-    sessions.length = 0;
-});
+        await pool.query("DELETE FROM Notifications");
+        await pool.query("DELETE FROM QueueEntry");
+        await pool.query("DELETE FROM Queues");
+        await pool.query("DELETE FROM UserProfile WHERE userId NOT IN (SELECT userId FROM UserCredentials WHERE email IN ('user@example.com', 'admin@queuesmart.com'))");
+        await pool.query("DELETE FROM UserCredentials WHERE email NOT IN ('user@example.com', 'admin@queuesmart.com')");
+
+        // Ensure user@example.com exists (may have been wiped by queue tests)
+        const [existing] = await pool.query("SELECT userId FROM UserCredentials WHERE email = 'user@example.com'");
+        if (existing.length === 0) {
+            const bcrypt = require('bcrypt');
+            const hash = await bcrypt.hash('password123', 10);
+            const [result] = await pool.query(
+                "INSERT INTO UserCredentials (email, passwordHash, role) VALUES ('user@example.com', ?, 'user')",
+                [hash]
+            );
+            await pool.query(
+                "INSERT INTO UserProfile (userId, fullName) VALUES (?, 'Example User')",
+                [result.insertId]
+            );
+        }
+
+        sessions.length = 0;
+    });
 
 afterAll(async () => {
     await pool.end();
@@ -328,4 +348,55 @@ afterAll(async () => {
             expect(res.body.success).toBe(true);
         });
     });
+
+    // ============================================
+    // VALIDATOR UNIT TESTS (lines 10, 24, 57-63)
+    // ============================================
+
+    describe('validators.js direct tests', () => {
+        test('validateEmail returns false for non-string input', () => {
+            expect(validateEmail(123)).toBe(false);
+            expect(validateEmail(null)).toBe(false);
+            expect(validateEmail(undefined)).toBe(false);
+        });
+
+        test('validateEmail returns true for valid email', () => {
+            expect(validateEmail('user@example.com')).toBe(true);
+        });
+
+        test('validateEmail returns false for invalid email', () => {
+            expect(validateEmail('notanemail')).toBe(false);
+        });
+
+        test('validatePassword returns error for non-string input', () => {
+            const result = validatePassword(123456);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Password is required');
+        });
+
+        test('validatePassword returns error for null', () => {
+            const result = validatePassword(null);
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Password is required');
+        });
+
+        test('validateRequired returns error for empty value', () => {
+            const result = validateRequired('', 'Username');
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Username is required');
+        });
+
+        test('validateRequired returns error for null', () => {
+            const result = validateRequired(null, 'Email');
+            expect(result.isValid).toBe(false);
+            expect(result.error).toBe('Email is required');
+        });
+
+        test('validateRequired returns valid for non-empty value', () => {
+            const result = validateRequired('hello', 'Field');
+            expect(result.isValid).toBe(true);
+            expect(result.error).toBeNull();
+        });
+    });
+
 });

@@ -290,4 +290,229 @@ describe('Queue Management API Tests', () => {
       expect(res.body.success).toBe(false);
     });
   });
+
+  describe('GET /api/queue/service/:serviceId', () => {
+    test('should return queue entries for a service', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
+
+      const res = await request(app).get(`/api/queue/service/${serviceId1}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.entries.length).toBe(1);
+      expect(res.body.entries[0].userId).toBe(userId1);
+    });
+
+    test('should return empty entries when nobody is waiting', async () => {
+      const res = await request(app).get(`/api/queue/service/${serviceId1}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.entries).toEqual([]);
+    });
+
+    test('should return 400 for invalid serviceId', async () => {
+      const res = await request(app).get('/api/queue/service/abc');
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/queue/entry/:queueEntryId/move', () => {
+    test('should move user down in queue', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+      await request(app).post('/api/queue/join').send({ userId: userId2, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId1]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      const res = await request(app)
+        .post(`/api/queue/entry/${entryId}/move`)
+        .send({ direction: 'down' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const [updated] = await pool.query(
+        `SELECT positionInQueue FROM QueueEntry WHERE queueEntryId = ?`,
+        [entryId]
+      );
+      expect(updated[0].positionInQueue).toBe(2);
+    });
+
+    test('should move user up in queue', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+      await request(app).post('/api/queue/join').send({ userId: userId2, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId2]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      const res = await request(app)
+        .post(`/api/queue/entry/${entryId}/move`)
+        .send({ direction: 'up' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const [updated] = await pool.query(
+        `SELECT positionInQueue FROM QueueEntry WHERE queueEntryId = ?`,
+        [entryId]
+      );
+      expect(updated[0].positionInQueue).toBe(1);
+    });
+
+    test('should return 400 for invalid direction', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId1]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      const res = await request(app)
+        .post(`/api/queue/entry/${entryId}/move`)
+        .send({ direction: 'sideways' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('should return 400 when cannot move further', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId1]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      const res = await request(app)
+        .post(`/api/queue/entry/${entryId}/move`)
+        .send({ direction: 'up' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('should return 400 for invalid queueEntryId', async () => {
+      const res = await request(app)
+        .post('/api/queue/entry/abc/move')
+        .send({ direction: 'up' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/queue/entry/:queueEntryId/remove', () => {
+    test('should remove user from queue successfully', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId1]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      const res = await request(app)
+        .post(`/api/queue/entry/${entryId}/remove`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const [updated] = await pool.query(
+        `SELECT status FROM QueueEntry WHERE queueEntryId = ?`,
+        [entryId]
+      );
+      expect(updated[0].status).toBe('canceled');
+    });
+
+    test('should reorder remaining users after removal', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+      await request(app).post('/api/queue/join').send({ userId: userId2, serviceId: serviceId1 });
+
+      const [entries] = await pool.query(
+        `SELECT queueEntryId FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId1]
+      );
+      const entryId = entries[0].queueEntryId;
+
+      await request(app).post(`/api/queue/entry/${entryId}/remove`);
+
+      const [rows] = await pool.query(
+        `SELECT positionInQueue FROM QueueEntry WHERE userId = ? AND status = 'waiting'`,
+        [userId2]
+      );
+      expect(rows[0].positionInQueue).toBe(1);
+    });
+
+    test('should return 404 for non-existent entry', async () => {
+      const res = await request(app).post('/api/queue/entry/99999/remove');
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('should return 400 for invalid queueEntryId', async () => {
+      const res = await request(app).post('/api/queue/entry/abc/remove');
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/queue/current/:userId edge cases', () => {
+    test('should return 400 for invalid userId', async () => {
+      const res = await request(app).get('/api/queue/current/abc');
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/queue/serve-next/:serviceId edge cases', () => {
+    test('should return 400 for invalid serviceId', async () => {
+      const res = await request(app).post('/api/queue/serve-next/abc');
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+
+  describe('wait-time utility via getCurrentQueue', () => {
+    test('should return 0 wait time when user is first in queue', async () => {
+      await request(app)
+        .post('/api/queue/join')
+        .send({ userId: userId1, serviceId: serviceId1 });
+
+      const res = await request(app).get(`/api/queue/current/${userId1}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.queue.peopleAhead).toBe(0);
+      expect(res.body.queue.estimatedWaitMinutes).toBe(0);
+    });
+
+    test('should calculate correct wait time based on people ahead', async () => {
+      await request(app).post('/api/queue/join').send({ userId: userId1, serviceId: serviceId1 });
+      await request(app).post('/api/queue/join').send({ userId: userId2, serviceId: serviceId1 });
+
+      const res = await request(app).get(`/api/queue/current/${userId2}`);
+
+      expect(res.statusCode).toBe(200);
+      // 1 person ahead * 15 min duration = 15 min wait
+      expect(res.body.queue.estimatedWaitMinutes).toBe(15);
+    });
+  });
+
 });
