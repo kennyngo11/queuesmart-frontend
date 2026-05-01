@@ -10,14 +10,8 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,N
 -- -----------------------------------------------------
 -- Schema queueSmart
 -- -----------------------------------------------------
--- COSC 4353 queueSmart Project
 DROP SCHEMA IF EXISTS `queueSmart` ;
 
--- -----------------------------------------------------
--- Schema queueSmart
---
--- COSC 4353 queueSmart Project
--- -----------------------------------------------------
 CREATE SCHEMA IF NOT EXISTS `queueSmart` DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci ;
 USE `queueSmart` ;
 
@@ -156,3 +150,17 @@ ENGINE = InnoDB;
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+
+-- -----------------------------------------------------
+-- Default Services (always seeded on fresh setup)
+-- -----------------------------------------------------
+INSERT INTO `queueSmart`.`Service` (name, description, expectedDuration, priorityLevel, isActive)
+VALUES
+  ('Academic Advising', 'Get help with course selection and academic planning', 20, 'medium', 1),
+  ('IT Help Desk', 'Technical support for students', 30, 'high', 1),
+  ('Student Services', 'General student inquiries and support', 10, 'low', 1)
+ON DUPLICATE KEY UPDATE
+  description = VALUES(description),
+  expectedDuration = VALUES(expectedDuration),
+  priorityLevel = VALUES(priorityLevel),
+  isActive = 1;
