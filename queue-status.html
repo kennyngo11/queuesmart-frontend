@@ -17,6 +17,7 @@
             <a href="dashboard.html" style="text-decoration:none;"><h1>QueueSmart</h1></a>
         </div>
         <div class="top-right">
+            <button class="icon-btn" id="adminToggleBtn" title="Admin Panel" onclick="window.location.href='admin-dashboard.html'" style="display:none;">👨🏻‍💻</button>
             <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
             <div class="notif-wrapper" id="notifWrapper">
                 <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
@@ -56,8 +57,6 @@
         </div>
     </main>
 
-    <script src="js/notifications.js"></script>
-
     <script>
         let currentQueue = null;
 
@@ -80,19 +79,25 @@
             return user.userId || user.id || null;
         }
 
-        function setQueueUI(queue) {
+        function setQueueUI(queue, totalInQueue) {
             document.getElementById('serviceName').innerText = queue.serviceName || 'Unknown Service';
             document.getElementById('peopleAhead').innerText = queue.peopleAhead ?? 0;
             document.getElementById('position').innerText = `#${queue.position}`;
             document.getElementById('wait').innerText = `${queue.estimatedWaitMinutes} minutes`;
-            document.getElementById('status').innerText = queue.status;
 
             const statusEl = document.getElementById('status');
+            statusEl.innerText = queue.status;
             statusEl.className = `status ${queue.status}`;
 
-            let fillPercent = 100;
-            if (queue.position >= 1) {
-                fillPercent = Math.max(10, 100 - ((queue.position - 1) * 20));
+            // Progress bar: how close to the front are you?
+            // Position 1 = 100%, last in queue = lowest %
+            let fillPercent;
+            if (totalInQueue && totalInQueue > 0) {
+                // Accurate: based on actual total queue size
+                fillPercent = Math.round(((totalInQueue - queue.position + 1) / totalInQueue) * 100);
+            } else {
+                // Fallback: position 1 = 100%, decreases by 10% per position
+                fillPercent = Math.max(5, 100 - ((queue.position - 1) * 10));
             }
             document.getElementById('progressFill').style.width = `${fillPercent}%`;
         }
@@ -127,7 +132,17 @@
                 }
 
                 currentQueue = data.queue;
-                setQueueUI(currentQueue);
+
+                // Fetch total queue size so the progress bar is accurate
+                try {
+                    const qRes = await fetch(`http://localhost:3000/api/queue/service/${currentQueue.serviceId}`);
+                    const qData = await qRes.json();
+                    const totalInQueue = qData.success ? qData.entries.length : null;
+                    setQueueUI(currentQueue, totalInQueue);
+                } catch {
+                    setQueueUI(currentQueue, null);
+                }
+
             } catch (err) {
                 console.error('Failed to load current queue:', err);
                 currentQueue = null;
@@ -191,8 +206,22 @@
             }
         }
 
+        function isAdminUser(user) {
+            if (!user || !user.role) return false;
+            return ["admin","administrator"].includes(String(user.role).toLowerCase());
+        }
+        function setupAdminToggle() {
+            const btn = document.getElementById("adminToggleBtn");
+            if (!btn) return;
+            if (isAdminUser(getStoredUser())) btn.style.display = "flex";
+        }
+
+        setupAdminToggle();
         loadCurrentQueue();
-        setInterval(loadCurrentQueue, 15000);
+        setInterval(loadCurrentQueue, 5000);
     </script>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="js/notifications.js"></script>
 </body>
 </html>

@@ -153,8 +153,16 @@
         }
 
         services.forEach(service => {
+            const waitMinutes = (service.queueLength || 0) * (service.duration || 0);
+            const waitLabel = waitMinutes === 0
+                ? '<span style="color:#10b981; font-size:0.8rem; margin-left:8px;">No wait</span>'
+                : `<span style="color:#f59e0b; font-size:0.8rem; margin-left:8px;">${waitMinutes} min wait</span>`;
+
             const li = document.createElement('li');
-            li.innerText = service.serviceName;
+            li.style.display = 'flex';
+            li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
+            li.innerHTML = `<span>${service.serviceName}</span>${waitLabel}`;
             li.dataset.serviceId = service.id;
             li.dataset.name = service.serviceName;
             li.onclick = function () {
@@ -177,6 +185,17 @@
             availableServices = data.filter(service => Number(service.isActive) === 1 || service.isActive === true);
 
             renderServices(availableServices);
+
+            // Restore selection after re-render
+            if (selectedService) {
+                const items = document.querySelectorAll('#servicesList li');
+                items.forEach(li => {
+                    if (Number(li.dataset.serviceId) === selectedService.serviceId) {
+                        li.classList.add('selected');
+                        selectedService.element = li;
+                    }
+                });
+            }
         } catch (err) {
             console.error('Failed to load services:', err);
             document.getElementById('servicesList').innerHTML = '<li>Failed to load services</li>';
@@ -253,7 +272,7 @@
     loadDashboardQueueSummary();
     loadServices();
     setupAdminToggle();
-    setInterval(loadDashboardQueueSummary, 15000);
+    setInterval(() => { loadDashboardQueueSummary(); loadServices(); }, 5000);
 </script>
 </body>
 </html>

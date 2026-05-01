@@ -15,6 +15,7 @@
             <a href="dashboard.html" style="text-decoration:none;"><h1 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin: 0;">QueueSmart</h1></a>
         </div>
         <div class="top-right" style="align-items: center;">
+            <button class="icon-btn" id="adminToggleBtn" title="Admin Panel" onclick="window.location.href='admin-dashboard.html'" style="display:none;">👨🏻‍💻</button>
             <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
             <div class="notif-wrapper" id="notifWrapper">
                 <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
@@ -73,6 +74,21 @@
 </main>
 <div class="toast-container" id="toastContainer"></div>
 <script>
+function getStoredUser() {
+    const raw = localStorage.getItem("queuesmartUser") || localStorage.getItem("user");
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+}
+function isAdminUser(user) {
+    if (!user || !user.role) return false;
+    return ["admin","administrator"].includes(String(user.role).toLowerCase());
+}
+function setupAdminToggle() {
+    const btn = document.getElementById("adminToggleBtn");
+    if (!btn) return;
+    if (isAdminUser(getStoredUser())) btn.style.display = "flex";
+}
+setupAdminToggle();
 function logout() {
     if (confirm("Are you sure you want to logout?")) {
         localStorage.removeItem("user");

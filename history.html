@@ -14,6 +14,7 @@
             <a href="dashboard.html" style="text-decoration:none;"><h1>QueueSmart</h1></a>
         </div>
         <div class="top-right">
+            <button class="icon-btn" id="adminToggleBtn" title="Admin Panel" onclick="window.location.href='admin-dashboard.html'" style="display:none;">👨🏻‍💻</button>
             <button class="icon-btn" title="History" onclick="window.location.href='history.html'">📋</button>
             <div class="notif-wrapper" id="notifWrapper">
                 <button class="icon-btn" title="Notifications" onclick="toggleNotifPanel()">🔔</button>
@@ -36,11 +37,31 @@
         <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
             <button class="logout-btn" onclick="clearHistory()">Clear History</button>
         </div>
-        <div class="history-list" id="historyList">
-        </div>
+        <div class="history-list" id="historyList"></div>
     </main>
+
 <div class="toast-container" id="toastContainer"></div>
+
 <script>
+function getStoredUser() {
+    const raw = localStorage.getItem('queuesmartUser') || localStorage.getItem('user');
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+}
+
+function isAdminUser(user) {
+    if (!user || !user.role) return false;
+    const role = String(user.role).toLowerCase();
+    return role === 'admin' || role === 'administrator';
+}
+
+function setupAdminToggle() {
+    const btn = document.getElementById('adminToggleBtn');
+    if (!btn) return;
+    const user = getStoredUser();
+    if (isAdminUser(user)) btn.style.display = 'flex';
+}
+
 function logout() {
     if (confirm("Are you sure you want to logout?")) {
         localStorage.removeItem("user");
@@ -56,39 +77,71 @@ function formatDate(isoString) {
            ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function loadHistory() {
+async function loadHistory() {
     const list = document.getElementById('historyList');
-    const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
-    const historyKey = `queueHistory_${user.id}`;
-    const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+    const user = getStoredUser();
+    const userId = user && (user.userId || user.id);
 
-    if (history.length === 0) {
-        list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">No queue history yet. Join a queue from the dashboard to see your history here.</div>';
+    if (!userId) {
+        list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">Please log in to view history.</div>';
         return;
     }
 
-    list.innerHTML = history.map(h => `
-        <article class="history-card">
-            <div class="history-main">
-                <h4>${h.serviceName}</h4>
-            </div>
-            <div class="history-meta">
-                <span>${formatDate(h.joinedAt)}</span>
-                <span class="status ${h.status}">${h.status.charAt(0).toUpperCase() + h.status.slice(1)}</span>
-            </div>
-        </article>
-    `).join('');
+    try {
+        const response = await fetch(`http://localhost:3000/api/history/${userId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">Failed to load history.</div>';
+            return;
+        }
+
+        // Get the "cleared at" timestamp for this user, if they ever cleared history
+        const clearedAt = localStorage.getItem(`historyClearedAt_${userId}`);
+
+        // Only show entries that were joined after the last clear
+        const visible = clearedAt
+            ? data.history.filter(h => new Date(h.joinedAt) > new Date(clearedAt))
+            : data.history;
+
+        if (!visible.length) {
+            list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">No queue history yet. Join a queue from the dashboard to see your history here.</div>';
+            return;
+        }
+
+        list.innerHTML = visible.map(h => `
+            <article class="history-card">
+                <div class="history-main">
+                    <h4>${h.serviceName}</h4>
+                </div>
+                <div class="history-meta">
+                    <span>${formatDate(h.joinedAt)}</span>
+                    <span class="status ${h.status}">${h.status.charAt(0).toUpperCase() + h.status.slice(1)}</span>
+                </div>
+            </article>
+        `).join('');
+
+    } catch (err) {
+        console.error('Failed to load history:', err);
+        list.innerHTML = '<div class="card" style="text-align:center; color:#6b7280; padding:40px;">Failed to load history.</div>';
+    }
 }
 
 function clearHistory() {
     if (confirm('Are you sure you want to clear your history?')) {
-        const user = JSON.parse(localStorage.getItem('queuesmartUser') || '{}');
-        const historyKey = `queueHistory_${user.id}`;
-        localStorage.removeItem(historyKey);
+        const user = getStoredUser();
+        const userId = user && (user.userId || user.id);
+        if (!userId) return;
+
+        // Save the current timestamp — any entry before this will be hidden on the frontend
+        // The data still remains in the database
+        localStorage.setItem(`historyClearedAt_${userId}`, new Date().toISOString());
+
         loadHistory();
     }
 }
 
+setupAdminToggle();
 loadHistory();
 </script>
 <script src="js/notifications.js"></script>

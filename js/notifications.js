@@ -122,7 +122,7 @@ document.addEventListener('click', function(e) {
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
-function showToast(message, type = 'general') {
+function showToast(message, type = 'general', duration = 10000) {
     const icons  = { queue_joined:'📋', queue_close:'⏰', queue_served:'✅', queue_left:'👋', general:'🔔' };
     const titles = { queue_joined:'Queue Update', queue_close:'Almost Your Turn!', queue_served:"You're Up!", queue_left:'Queue Update', general:'Notification' };
     const container = document.getElementById('toastContainer');
@@ -137,7 +137,7 @@ function showToast(message, type = 'general') {
         </div>
         <button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
     container.appendChild(toast);
-    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 15000);
+    setTimeout(() => { if (toast.parentElement) toast.remove(); }, duration);
 }
 
 // ── Create a notification (call this when queue events happen) ────────────────
@@ -169,9 +169,92 @@ function formatTime(isoString) {
 // ── Auto-start: fetch badge count on load, refresh every 30s ─────────────────
 
 fetchNotifications();
-setInterval(fetchNotifications, 30000);
+setInterval(fetchNotifications, 5000);
 
 // Refresh when user switches back to this tab/page
 document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') fetchNotifications();
 });
+// ── Queue position tracker ────────────────────────────────────────────────────
+// Polls every 5 seconds. Shows toast on every page for visual feedback.
+// Only saves to DB (dropdown) when position actually changes.
+
+let lastKnownPosition = null;
+let lastKnownStatus = null;
+
+async function checkQueuePosition() {
+    if (!userId) return;
+
+    try {
+        const res = await fetch(`${API}/queue/current/${userId}`);
+        const data = await res.json();
+
+        if (!data.success || !data.queue) {
+            if (lastKnownPosition !== null) {
+                try {
+                    const histRes = await fetch(`${API}/history/${userId}`);
+                    const histData = await histRes.json();
+                    if (histData.success && histData.history.length > 0) {
+                        const lastEntry = histData.history[0];
+                        if (lastEntry.status === 'served') {
+                            createNotification('Your service is now in progress!', 'queue_served');
+                            localStorage.removeItem(`queuePosition_${userId}`);
+                        } else if (lastEntry.status === 'canceled') {
+                            createNotification('You have been removed from the queue.', 'queue_left');
+                            localStorage.removeItem(`queuePosition_${userId}`);
+                        }
+                    }
+                } catch (err) {
+                    console.error('checkQueuePosition history fetch:', err);
+                }
+                lastKnownPosition = null;
+                lastKnownStatus = null;
+            }
+            return;
+        }
+
+        const newPosition = data.queue.position;
+        const newStatus = data.queue.status;
+        const savedPosition = parseInt(localStorage.getItem(`queuePosition_${userId}`) || '0');
+
+        if (lastKnownPosition === null) {
+            // Always show toast on page load
+            showToast(`You are currently #${newPosition} in the queue for ${data.queue.serviceName}.`, 'queue_joined');
+            // Only save to dropdown if this is a new position
+            if (newPosition !== savedPosition) {
+                await saveNotificationOnly(`You are currently #${newPosition} in the queue for ${data.queue.serviceName}.`, 'queue_joined');
+                localStorage.setItem(`queuePosition_${userId}`, newPosition);
+            }
+        } else if (newPosition < lastKnownPosition) {
+            // Position moved up — show toast and save to dropdown
+            showToast(`Your position moved up! You are now #${newPosition} in the queue for ${data.queue.serviceName}.`, 'queue_joined');
+            await saveNotificationOnly(`Your position moved up! You are now #${newPosition} in the queue for ${data.queue.serviceName}.`, 'queue_joined');
+            localStorage.setItem(`queuePosition_${userId}`, newPosition);
+        }
+
+        lastKnownPosition = newPosition;
+        lastKnownStatus = newStatus;
+
+    } catch (err) {
+        console.error('checkQueuePosition:', err);
+    }
+}
+
+// Saves notification to DB and refreshes dropdown WITHOUT showing a toast
+async function saveNotificationOnly(message, type) {
+    try {
+        const res = await fetch(`${API}/notifications`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, message, type })
+        });
+        const data = await res.json();
+        if (data.success) fetchNotifications();
+    } catch (err) {
+        console.error('saveNotificationOnly:', err);
+    }
+}
+
+// Start polling queue position every 5 seconds
+checkQueuePosition();
+setInterval(checkQueuePosition, 5000);
