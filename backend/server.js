@@ -1,8 +1,10 @@
 // server.js - main express server
 // This file will be shared by all team members
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const serviceRoutes = require('./routes/service');
@@ -31,12 +33,18 @@ app.use('/api/history', historyRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 
-// TODO: Other team members will add their routes here
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'QueueSmart Backend is running' });
 });
+
+app.use(express.static(path.join(__dirname,'..')));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '..','index.html'));
+});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -58,5 +66,4 @@ if (require.main === module){
         console.log(`QueueSmart Backend running on http://localhost:${PORT}`);
     });
 };
-
 module.exports = app;
